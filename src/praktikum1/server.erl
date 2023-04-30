@@ -18,34 +18,73 @@ start() ->
     HBQ = initHBQ(DLQLimit, HBQName),
     LogFile = "server_log.log",
     CMEM = initCMEM(RemTime, LogFile),
-    ServerID = spawn(fun() -> loop(0, Latency, HBQ, CMEM, LogFile)end),
+    ServerID = spawn(fun() -> loop(0, Latency, HBQ, CMEM, LogFile) end),
     register(ServerName, ServerID),
     ServerID.
 
 loop(NNrCounter, Latency, HBQ, CMEM, LogFile) ->
     % 3 - neue Nachricht empfangen
     receive
-        {_ClientID, getmessages} ->
+        {ClientID, getmessages} ->
+            % TODO
+            ClientNNr = getClientNNr(CMEM, ClientID),
+            HBQ ! {self(), {request, deliverMSG, ClientNNr, ClientID}},
+            receive
+                ActualNNr ->
+                    ActualNNr
+            end,
+            io:write(ActualNNr),
             io:write([getmessages, "\n"]),
             % loop(0, Latency, HBQ, CMEM, LogFile),
             ok;
-        {dropmessage, Message = [NNR, Msg, TSclientout]} ->
+
+        {dropmessage, Message = [_NNR, _Msg, _TSclientout]} ->
             io:write(Message),
             ok;
-        {_ClientID, getmsgid} ->
+
+        {ClientID, getmsgid} ->
             io:write(getmsgid),
-            ok;
+            ClientID ! {};
+
+        % 16
         {_ClientID, listDLQ} ->
             io:write(listDLQ),
-            ok;
+            Reply = send_msg(HBQ, {self(), {request, listHBQ}}),
+            if Reply == {reply, ok} -> ok;
+                true -> log(LogFile, Reply)
+            end;
+
+        % 19
         {_ClientID, listHBQ} ->
             io:write(listHBQ),
-            ok;
+            Reply = send_msg(HBQ, {self(), {request, listHBQ}}),
+            if Reply == {reply, ok} -> ok;
+                true -> log(LogFile, Reply)
+            end;
+
+        % 22
         {_ClientID, listCMEM} ->
             io:write(listCMEM),
-            ok;
-        _Any ->
+            log(LogFile, CMEM);
+
+        Any ->
+            log(LogFile, "Server hat " ++ [Any] ++ "empfangen, konnte damit jedoch nichts anfangen."),
             ok
     end,
     loop(NNrCounter, Latency, HBQ, CMEM, LogFile).
 
+%% @doc log `Data` to `LogFile`
+log(LogFile, Data) ->
+    file:write_file(LogFile, Data, [append]),
+    io:format(">: ~p~n", Data),
+    ok.
+
+getClientNNr(_, _) ->
+    ok.
+
+send_msg(PID, Message) ->
+    PID ! Message,
+    receive
+        Any ->
+            Any
+    end.
