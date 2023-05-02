@@ -6,6 +6,7 @@
 -export([push2DLQ/3]).
 -export([listDLQ/1]).
 -export([deliverMSG/4]).
+-export([reverse/1]).
 
 -import(util, [logging/2]).
 -import(vsutil, [now2string/1]).
@@ -13,7 +14,7 @@
 %% @doc initialisiert die DLQ.
 initDLQ(DLQLimit, LogFile) ->
     % 2
-    logging(LogFile, io_lib:format("DLQ mit ~B erstellt.~n", DLQLimit)),
+    logging(LogFile, io_lib:format("DLQ mit DLQLimit ~B erstellt.~n", [DLQLimit])),
     % 1 und 3
     {DLQLimit, []}.
 
@@ -21,11 +22,16 @@ delDLQ(_Queue) ->
     ok.
 
 %% @doc Ermittelt die als nächstes erwartete Nachrichennummer der DLQ.
-expectedNr(Queue) ->
+expectedNr({_Capacity, Queue}) ->
     % 1
-    [NNr | _Tail] = reverse(Queue),
-    % 2
-    NNr + 1.
+    %% FIXME: was ist wenn die Queue noch leer ist, bzw kann dieser Fall eintreten?
+    case Queue of
+        [] ->
+            0 + 1;
+        % 2
+        [NNr | _Tail] ->
+            NNr + 1
+    end.
 
 %% @doc Verschiebt eine Nachricht in die DLQ und ergänzt diese um einen Zeitstempel.
 push2DLQ([NNr, TextMsg, TSclientout, TShbqin], Queue = {Capacity, Messages}, LogFile) ->
@@ -34,7 +40,7 @@ push2DLQ([NNr, TextMsg, TSclientout, TShbqin], Queue = {Capacity, Messages}, Log
     NewMsg = [NNr, TextMsg ++ now2string(TSdlqin), TSclientout, TShbqin, TSdlqin],
 
     % 7
-    logging(LogFile, io_lib:format("~p wurde in die DLQ eingefügt.", NewMsg)),
+    logging(LogFile, io_lib:format("~p wurde in die DLQ eingefügt.", [NewMsg])),
 
     %               3                 4
     NewQueue =
@@ -55,7 +61,18 @@ push2DLQ([NNr, TextMsg, TSclientout, TShbqin], Queue = {Capacity, Messages}, Log
 %% dass es immer in der richtigen Rheinfolge ist.
 add2dlq(Elem, {Capacity, Messages}) ->
     %% TODO sicherstellen, dass queue geordnet ist
-    {Capacity, [Elem | Messages]}.
+    {Capacity, add2dlq_intern(Elem, Messages)}.
+
+add2dlq_intern(Elem, []) ->
+    Elem;
+add2dlq_intern(Elem = [ElemNNr | _ElemTail],
+               Messages = [Msg = [MsgNNr | _MsgTail] | MessagesTail]) ->
+    case ElemNNr < MsgNNr of
+        true ->
+            [Elem | Messages];
+        false ->
+            [Msg | add2dlq_intern(Elem, MessagesTail)]
+    end.
 
 %% @doc Versendet eine Nachricht an einen Leser.
 %% Ist die angefragte Nachrichtennummer nicht in der DLQ enthalten,
@@ -78,11 +95,12 @@ deliverMSG(MSGNr, ClientPID, Queue, LogFile) ->
         nok when MSGNr + 1 < ExpectedNNr ->
             deliverMSG(MSGNr + 1, ClientPID, Queue, LogFile);
         nok ->
-            logging(LogFile, io_lib:format("Nachricht=~B konnte nicht gefunden werden.", MSGNr)),
             NewMessage = [-1, nokA, 0, 0, 0, 0],
+            logging(LogFile,
+                    io_lib:format("DLQ: Nachricht=~B konnte nicht gefunden werden. ~p wurde an "
+                                  "~B gesendet.",
+                                  [MSGNr, NewMessage, ClientPID])),
             ClientPID ! {reply, NewMessage, true},
-            %% TODO sollen wir hier nochmal loggen, dass wir die Fehlernachricht rausgeschickt haben?
-            %% logging(LogFile, io_lib:format("~p wurde an ~B gesendet.", NewMessage, ClientPID)),
             -1;
         Message ->
             Terminated =
@@ -94,7 +112,7 @@ deliverMSG(MSGNr, ClientPID, Queue, LogFile) ->
             TSdlqout = erlang:timestamp(),
             NewMessage = Message ++ TSdlqout,
             ClientPID ! {reply, NewMessage, Terminated},
-            logging(LogFile, io_lib:format("~p wurde an ~B gesendet.", NewMessage, ClientPID)),
+            logging(LogFile, io_lib:format("~p wurde an ~B gesendet.", [NewMessage, ClientPID])),
             MSGNr
     end.
 
@@ -124,7 +142,7 @@ getMessageByNr(NNr, {_Capacity, List}, LogFile) ->
     getMessageByNr(NNr, List, LogFile);
 %%                  2
 getMessageByNr(NNr, [], LogFile) ->
-    logging(LogFile, io_lib:format("NNr=~B wurde nicht in DLQ gefunden.", NNr)),
+    logging(LogFile, io_lib:format("NNr=~B wurde nicht in DLQ gefunden.", [NNr])),
     nok;
 %%                             3, 5
 getMessageByNr(NNr, Message = [NNr | _Tail], _LogFile) ->
@@ -139,6 +157,8 @@ getMessageByNr(NNr, [_CurrentNr | Tail], LogFile) ->
 reverse(List) ->
     reverse(List, []).
 
+reverse([], Accu) ->
+    Accu;
 reverse([Elem | Tail], Accu) ->
     reverse(Tail, [Elem | Accu]).
 
