@@ -191,23 +191,28 @@ checkFuture(MsgString, TSclientout, TShbqin, TSdlqout, TSclientin, LogFile, NNr)
             MsgString;
         _AllTrue ->
             TimeDifferenceServer = diffTS(TShbqin, TSclientout),
+            TDServerInS = tsToSeconds(TimeDifferenceServer),
             TimeDifferenceLeser = diffTS(TSclientin, TSdlqout),
+            TDLeserInS = tsToSeconds(TimeDifferenceLeser),
             ZukunftServer = ">**Nachricht aus der Zukunft fuer Server:",
             ZukunftLeser = ">**Nachricht aus der Zukunft fuer Leser:",
             NewMsgString =
                 if
-                    TimeDifferenceServer < 0 ->
+                    TDServerInS < 0 ->
                         MsgString ++ ZukunftServer ++ now2string(TimeDifferenceServer);
                     true ->
                         MsgString
                 end,
             if
-                TimeDifferenceLeser < 0 ->
+                TDLeserInS < 0 ->
                     NewMsgString ++ ZukunftLeser ++ now2string(TimeDifferenceLeser);
                 true ->
                     NewMsgString
             end
     end.
+
+tsToSeconds({MegaSecs, Secs, _MicroSecs}) ->
+    MegaSecs * 1000000 + Secs.
 
 validateTimestamps(TS1, TS2, TS3, TS4) ->
     {validTS(TS1), validTS(TS2), validTS(TS3), validTS(TS4)}.
