@@ -3,7 +3,8 @@
 -export([initHBQ/2]).
 
 -import(dlq, [initDLQ/2]).
--import(dlq, [pushDLQ/4]).
+-import(dlq, [expectedNr/1]).
+-import(dlq, [deliverMSG/4]).
 
 %% @doc startet den HBQ-Prozess und initialisiert die HBQ sowie die DLQ.
 initHBQ(DLQLimit, HBQName) ->
@@ -37,20 +38,20 @@ loop(DLQ, HBQ, LogFile) ->
     % 1
     {ServerID, Message} =
         receive
-            {ServerID, Message} ->
-                {ServerID, Message}
+            Any ->
+                Any
         end,
 
     case Message of
         % 2
-        {request, pushHBQ, Msg = [NNr, Msg, TSclientout]} ->
+        {request, pushHBQ, Msg} ->
             % 3
-            Return = pushHBQ(HBQ, DLQ, LogFile, Msg),
+            {Return, NewHBQ} = pushHBQ(HBQ, DLQ, LogFile, Msg),
             % 4
             NewDLQ = pushDLQ(Return, HBQ, DLQ, LogFile),
             % 5
             ServerID ! {reply, ok},
-            loop(NewDLQ, HBQ, LogFile);
+            loop(NewDLQ, NewHBQ, LogFile);
         % 6
         {request, deliverMSG, NNr, ToClient} ->
             % 7
@@ -61,14 +62,14 @@ loop(DLQ, HBQ, LogFile) ->
         % 9
         {request, listHBQ} ->
             % 10
-            vsutil:logging(LogFile, io_lib:format("HBQ = ~p", HBQ)),
+            vsutil:logging(LogFile, io_lib:format("HBQ = ~p", [HBQ])),
             % 11
             ServerID ! {reply, ok},
             loop(DLQ, HBQ, LogFile);
         % 12
         {request, listDLQ} ->
             % 13
-            vsutil:logging(LogFile, io_lib:format("DLQ = ~p", DLQ)),
+            vsutil:logging(LogFile, io_lib:format("DLQ = ~p", [DLQ])),
             % 14
             ServerID ! {reply, ok},
             loop(DLQ, HBQ, LogFile);
@@ -78,8 +79,69 @@ loop(DLQ, HBQ, LogFile) ->
             ServerID ! ok
     end.
 
-deliverMSG(_, _, _, _) ->
-  ok.
+%% @doc Fügt eine Nachricht in die HBQ ein.
+%% Verwirft die Nachricht, wenn ihre Nachrichtennummer bereits in der DLQ war.
+%%
+%% Außerdem werden hier ggf. Fehlernachrichten erstellt und in die DLQ eingefügt,
+%% sollten sich zu viele Nachrichten in der HBQ befinden.
+pushHBQ(HBQ = [[SmallestHBQ | _] | _], DLQ, LogFile, Message = [NNr | _]) ->
+    % 1
+    ExpectedNNr = dlq:expectedNr(DLQ),
+    %     2
+    case NNr < ExpectedNNr of
+        true ->
+            % 3
+            vsutil:logging(LogFile, io_lib:format("HBQ: ~p wurde verworfen", [Message])),
+            % 4
+            discarded;
+        %                5
+        false ->
+            NewHBQ = add2HBQ(Message, HBQ),
+            % 7
+            CapacityDLQ = dlq:lengthDLQ(DLQ),
+            %     6            8
+            case length(HBQ) < 2 / 3 * CapacityDLQ of
+                true ->
+                    % 9
+                    {ok, NewHBQ};
+                false ->
+                    %      11              10
+                    LastMissingNNr = SmallestHBQ - 1,
+                    % 12, 13
+                    Fehlernachricht =
+                        io_lib:format("***Fehlernachricht fuer Nachrichtennummern ~B bis ~B um <Zeitstempel>",
+                                      [SmallestHBQ, LastMissingNNr]),
+                    % 14
+                    vsutil:logging(LogFile, io_lib:format("HBQ: ~p", [Fehlernachricht])),
+                    % 15
+                    {Fehlernachricht, NewHBQ}
+            end
+    end.
 
-pushHBQ(_, _, _, _) ->
+add2HBQ(_, _) ->
+    %% TODO
+    ok.
+
+%% @doc Verschiebt so viele Nachrichten wie möglich aus der HBQ in die DLQ.
+%% Dies führt zu einem Leeren der HBQ, solange es dort keine Lücken gibt.
+%% @end
+%%       3   4
+pushDLQ(ok, [], DLQ, Datei) ->
+    % 11
+    DLQ;
+pushDLQ(ok, _HBQ = [FirstMsg = [FirstNNr | _] | Tail], DLQ, Datei) ->
+    ExpectedNNr = expectedNr(DLQ),
+    case ExpectedNNr == FirstNNr of
+        true ->
+            NewDLQ = push2DLQ(FirstMsg, DLQ, Datei),
+            pushDLQ(ok, Tail, NewDLQ, Datei);
+        false ->
+            todo
+    end;
+pushDLQ(fehlernachricht, HBQ, DLQ, Datei) ->
+    %% TODO: wie kann man feststellen, dass es sich um die Fehlernachricht handelt?
+    %% alles andere als ok?
+    todo.
+
+push2DLQ(_, _, _) ->
     ok.
