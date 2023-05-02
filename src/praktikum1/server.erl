@@ -73,7 +73,7 @@ loop(NNrCounter, Latency, HBQ, CMEM, LogFile) ->
     end,
     loop(NNrCounter, Latency, HBQ, CMEM, LogFile).
 
-%% @doc log `Data` to `LogFile`
+%% @doc log Data to LogFile
 log(LogFile, Data) ->
     file:write_file(LogFile, Data, [append]),
     io:format(">: ~p~n", Data),
