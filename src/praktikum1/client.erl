@@ -15,29 +15,36 @@ start() ->
     {ok, ServerName} = get_config_value(servername, ClientConfig),
     {ok, ServerNode} = get_config_value(servernode, ClientConfig),
 
-    Server = {ServerName, ServerNode},
+    startClients(Clients, LifeTime, SendeIntervall, ServerName, ServerNode, Clients).
 
-    startClients(Clients, LifeTime, SendeIntervall, Server, Clients),
-
-    case net_adm:ping(ServerNode) of
-        pang ->
-            logging("ClientStarter.log", format("Server-Node ~s konnte nicht gefunden werden.~n", [ServerNode]));
-        pong ->
-            erlang:send_after(LifeTime * 1000, self(), {terminateClient}),
-            startClients(Clients, LifeTime, SendeIntervall, Server, Clients)
-    end.
-
-startClients(Clients, _LifeTime, _SendeIntervall, _Server, 0) ->
-    logging("ClientStarter.log", format("Alle ~p Clients erfolgreich gestartet!~n", [Clients]));
-startClients(Clients, LifeTime, SendeIntervall, Server, Counter) ->
+startClients(Clients, _LifeTime, _SendeIntervall, _ServerName, _ServerNode, 0) ->
+    logging(
+        "ClientStarter.log",
+        format("~s: Alle ~p Clients erfolgreich gestartet!~n", [
+            now2string(erlang:timestamp()), Clients
+        ])
+    );
+startClients(Clients, LifeTime, SendeIntervall, ServerName, ServerNode, Counter) ->
     {IntervalMin, IntervalMax} = SendeIntervall,
     [Delay] = randomliste(1, IntervalMin, IntervalMax),
     {ok, HostName} = inet:gethostname(),
     % Gruppe 2 Team 10
     ClientName = format("Client~p@~s210", [Clients - Counter, HostName]),
     LogFile = format("~s.log", [ClientName]),
-    spawn(fun() -> loop([], LifeTime, Delay, Server, ClientName, LogFile) end),
-    startClients(Clients, LifeTime, SendeIntervall, Server, Counter - 1).
+    spawn(fun() -> startClient(LifeTime, Delay, ServerName, ServerNode, ClientName, LogFile) end),
+    startClients(Clients, LifeTime, SendeIntervall, ServerName, ServerNode, Counter - 1).
+
+startClient(LifeTime, Delay, ServerName, ServerNode, ClientName, LogFile) ->
+    case net_adm:ping(ServerNode) of
+        pang ->
+            logging(
+                LogFile,
+                format("Server-Node ~s konnte nicht gefunden werden.~n", [ServerNode])
+            );
+        pong ->
+            erlang:send_after(LifeTime * 1000, self(), {terminateClient}),
+            loop([], LifeTime, Delay, {ServerName, ServerNode}, ClientName, LogFile)
+    end.
 
 loop(RMEM, LifeTime, Delay, Server, ClientName, LogFile) ->
     %logging(LogFile, format("~p, ~p, ~p, ~s~n", [LifeTime, Delay, Server, ClientName])),
@@ -50,7 +57,7 @@ redakteur(Delay, Server, ClientName, LogFile) ->
     redakteurLoop(Delay, Server, ClientName, LogFile, 5),
     NNr = getNNr(Server, ClientName, LogFile),
     Now = now2string(erlang:timestamp()),
-    logging(LogFile, format("~pte_Nachricht um ~s|vergessen zu senden ******", [NNr, Now])).
+    logging(LogFile, format("~pte_Nachricht um ~svergessen zu senden ******", [NNr, Now])).
 
 redakteurLoop(_Delay, _Server, _ClientName, _LogFile, 0) ->
     ok;
@@ -68,7 +75,8 @@ getNNr(Server, ClientName, LogFile) ->
         {nid, NNr} ->
             NNr;
         {terminateClient} ->
-            logging(LogFile, format("~s nach Ablauf seiner Lifetime terminiert.~n", [ClientName]))
+            logging(LogFile, format("~s nach Ablauf seiner Lifetime terminiert.~n", [ClientName])),
+            exit(normal)
     after 3000 ->
         logging(
             LogFile,
@@ -130,7 +138,8 @@ getNewMessage(Server, ClientName, LogFile) ->
         {reply, Message, Terminated} ->
             {Message, Terminated};
         {terminateClient} ->
-            logging(LogFile, format("~s nach Ablauf seiner Lifetime terminiert.~n", [ClientName]))
+            logging(LogFile, format("~s nach Ablauf seiner Lifetime terminiert.~n", [ClientName])),
+            exit(normal)
     after 3000 ->
         logging(
             LogFile,
