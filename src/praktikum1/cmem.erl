@@ -46,13 +46,16 @@ forgetClients({RemTime, ClientList}) ->
 forgetClients([], _Now, _RemTime) ->
     [];
 forgetClients([H = {_ID, LastInteraction, _NNr} | T], Now, RemTime) ->
-    TimeDifference = diffTS(Now, LastInteraction),
+    TimeDifference = tsToSeconds(diffTS(Now, LastInteraction)),
     if
         TimeDifference > RemTime ->
-            [forgetClients(T, Now, RemTime)];
+            forgetClients(T, Now, RemTime);
         true ->
             [H | forgetClients(T, Now, RemTime)]
     end.
+
+tsToSeconds({MegaSecs, Secs, _MicroSecs}) ->
+    MegaSecs * 1000000 + Secs.
 
 getClientNNr({_RemTime, ClientList}, ClientID) ->
     getClientNNrInternal(ClientList, ClientID).
