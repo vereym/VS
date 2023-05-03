@@ -16,7 +16,7 @@ start() ->
     {ok, ServerName} = get_config_value(servername, ClientConfig),
     {ok, ServerNode} = get_config_value(servernode, ClientConfig),
     {ok, HostName} = inet:gethostname(),
-    % 3
+    % 2
     startClients(Clients, LifeTime, SendeIntervall, ServerName, ServerNode, HostName, Clients).
 
 % Hilfsfunktion für start/0.
@@ -30,15 +30,20 @@ startClients(Clients, _LifeTime, _SendeIntervall, _ServerName, _ServerNode, Host
         ])
     );
 startClients(Clients, LifeTime, SendeIntervall, ServerName, ServerNode, HostName, Counter) ->
+    % 3 (Gruppe 2 Team 10)
     ClientName = format("Client~B@~s210", [Clients - Counter, HostName]),
+    % 4
     startClient(LifeTime, SendeIntervall, ServerName, ServerNode, ClientName),
     startClients(Clients, LifeTime, SendeIntervall, ServerName, ServerNode, HostName, Counter - 1).
 
-% 
+% Initialisiert und startet einen Client-Prozess.
 startClient(LifeTime, SendeIntervall, ServerName, ServerNode, ClientName) ->
+    % 1
     {IntervalMin, IntervalMax} = SendeIntervall,
     [Delay] = randomliste(1, IntervalMin, IntervalMax),
-    % Gruppe 2 Team 10
+    % 2
+    Server = {ServerName, ServerNode},
+    % 3
     LogFile = format("~s.log", [ClientName]),
     case net_adm:ping(ServerNode) of
         pang ->
@@ -47,14 +52,18 @@ startClient(LifeTime, SendeIntervall, ServerName, ServerNode, ClientName) ->
                 format("Server-Node ~s konnte nicht gefunden werden.~n", [ServerNode])
             );
         pong ->
+            % 4
             spawn(
                 fun() ->
-                    startLoop(LifeTime, Delay, {ServerName, ServerNode}, ClientName, LogFile)
+                    startLoop(LifeTime, Delay, Server, ClientName, LogFile)
                 end)
     end.
 
+% Hilfsfunktion für startClient/5.
 startLoop(LifeTime, Delay, Server, ClientName, LogFile) ->
+    % 5
     timer:send_after(LifeTime * 1000, {terminateClient}),
+    % 6
     loop([], LifeTime, Delay, Server, ClientName, LogFile).
 
 loop(RMEM, LifeTime, Delay, Server, ClientName, LogFile) ->
