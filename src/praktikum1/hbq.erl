@@ -14,9 +14,8 @@ initHBQ(DLQLimit, HBQName) ->
     % 1
     {ok, HostName} = inet:gethostname(),
     LogFile = io_lib:format("hbq_dlq~s.log", [HostName]),
-    logging(
-        LogFile, io_lib:format("~s: HBQ wurde initialisiert~n", [now2string(erlang:timestamp())])
-    ),
+    logging(LogFile,
+            io_lib:format("~s: HBQ wurde initialisiert~n", [now2string(erlang:timestamp())])),
     %       2
     DLQ = initDLQ(DLQLimit, LogFile),
     % 3

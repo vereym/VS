@@ -95,37 +95,31 @@ add2dlq_intern(Elem = [ElemNNr | _ElemTail],
 %% wenn es keine Nachrichten mehr gibt) mit in die versendete Nachricht eingefügt.
 %%
 %% Anschließend wird die tatsächlich versendete Nachrichtennummer zurückgegeben.
-deliverMSG(MSGNr, ClientPID, Queue, LogFile) ->
+deliverMSG(MSGNr, ClientPID, Queue = {_Capacity, Messages}, LogFile) ->
     ExpectedNNr = expectedNr(Queue),
-    case getMessageByNr(MSGNr, Queue, LogFile) of
+    case getMessageByNr(MSGNr, Messages, LogFile) of
         nok when MSGNr + 1 < ExpectedNNr ->
             deliverMSG(MSGNr + 1, ClientPID, Queue, LogFile);
         nok ->
             NewMessage = [-1, nokA, 0, 0, 0, 0],
-            logging(
-                LogFile,
-                io_lib:format(
-                    "DLQ: Nachricht=~B konnte nicht gefunden werden. ~p wurde an "
-                    "~B gesendet.",
-                    [MSGNr, NewMessage, ClientPID]
-                )
-            ),
+            logging(LogFile,
+                    io_lib:format("DLQ: Nachricht=~B konnte nicht gefunden werden. ~p wurde an "
+                                  "~p gesendet.",
+                                  [MSGNr, NewMessage, ClientPID])),
             ClientPID ! {reply, NewMessage, true},
             -1;
         Message ->
             Terminated =
-                if
-                    MSGNr == ExpectedNNr - 1 ->
-                        true;
-                    true ->
-                        false
+                if MSGNr == ExpectedNNr - 1 ->
+                       true;
+                   true ->
+                       false
                 end,
             TSdlqout = erlang:timestamp(),
             NewMessage = Message ++ TSdlqout,
             ClientPID ! {reply, NewMessage, Terminated},
-            logging(
-                LogFile, io_lib:format("DLQ: ~p wurde an ~B gesendet.~n", [NewMessage, ClientPID])
-            ),
+            logging(LogFile,
+                    io_lib:format("DLQ: ~p wurde an ~p gesendet.~n", [NewMessage, ClientPID])),
             MSGNr
     end.
 
@@ -153,19 +147,16 @@ lengthDLQ({Capacity, _Queue}) ->
 %% -------------------------------------
 
 %% @doc Gibt bei Erfolg die zugehörige Nachricht zu einer angegebenen Nachrichtennummer zurück.
-getMessageByNr(NNr, {_Capacity, List}, LogFile) ->
-    %                    1
-    getMessageByNr(NNr, List, LogFile);
 %%                  2
 getMessageByNr(NNr, [], LogFile) ->
     logging(LogFile, io_lib:format("NNr=~B wurde nicht in DLQ gefunden.~n", [NNr])),
     nok;
 %%                             3, 5
-getMessageByNr(NNr, Message = [NNr | _Tail], _LogFile) ->
+getMessageByNr(NNr, [Message = [NNr | _Tail]|_QueueTail], _LogFile) ->
     % 7
     Message;
 %%                           3, 5
-getMessageByNr(NNr, [_CurrentNr | Tail], LogFile) ->
+getMessageByNr(NNr, [_CurrentMsg | Tail], LogFile) ->
     %                    6
     getMessageByNr(NNr, Tail, LogFile).
 

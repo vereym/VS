@@ -27,7 +27,7 @@ start() ->
     % 5
     register(ServerName, self()),
     % 6
-    Timer = timer:send_after(Latency * 1000, {terminateServer}),
+    Timer = timer:send_after(Latency * 1000, {fun() -> self() end, terminateServer}),
     % 7
     loop(1, Latency, HBQ, CMEM, Timer, LogFile).
 
@@ -42,9 +42,11 @@ start() ->
 % - listDLQ/HBQ/CMEM: bewirkt ein Logging der DLQ/HBQ/CMEM in einer Datei
 loop(NNrCounter, Latency, HBQ, CMEM, Timer, LogFile) ->
     % 1
+    timer:cancel(Timer),
     receive
         % 3
         {ClientID, getmessages} ->
+            logging(LogFile, format("server hat getmessages erhalten~n", [])),
             % 2
             NewTimer = reset_timer(Timer, Latency, {terminateServer}),
             % 4
@@ -56,7 +58,7 @@ loop(NNrCounter, Latency, HBQ, CMEM, Timer, LogFile) ->
                     {reply, SendNNr} ->
                         SendNNr
                 after 7000 ->
-                    logging(LogFile, "Keine Antwort von der HBQ erhalten. Server terminiert"),
+                    logging(LogFile, format("Keine Antwort von der HBQ erhalten. Server terminiert~n", [])),
                     exit(normal)
                 end,
             % 6
@@ -103,9 +105,9 @@ loop(NNrCounter, Latency, HBQ, CMEM, Timer, LogFile) ->
             logging(LogFile, format("~p~n", [listCMEM(CMEM)])),
             loop(NNrCounter, Latency, HBQ, CMEM, NewTimer, LogFile);
         % Beenden des Servers bei Ablauf vom Timer.
-        {terminateServer} ->
-            logging(LogFile, "Server nach Ablauf seiner Latency terminiert.~n"),
-            exit(normal);
+        %% {terminateServer} ->
+        %%     logging(LogFile, "Server nach Ablauf seiner Latency terminiert.~n"),
+        %%     exit(normal);
         % Abfangen jeder beliebigen Nachricht.
         Any ->
             logging(
@@ -115,7 +117,10 @@ loop(NNrCounter, Latency, HBQ, CMEM, Timer, LogFile) ->
                     [Any]
                 )
             ),
-            ok
+            loop(NNrCounter, Latency, HBQ, CMEM, Timer, LogFile)
+    after Latency * 1000 ->
+        logging(LogFile, "Server nach Ablauf seiner Latency terminiert.~n"),
+        exit(normal)
     end.
 
 % Hilfsfunktion für loop/6.
@@ -126,6 +131,6 @@ send_msg(HBQ, Message, LogFile) ->
         {reply, ok} ->
             ok
     after 7000 ->
-        logging(LogFile, "Keine Antwort von der HBQ erhalten. Server terminiert"),
+        logging(LogFile, format("Keine Antwort von der HBQ erhalten. Server terminiert~n", [])),
         exit(normal)
     end.

@@ -1,1 +1,1 @@
-{"src/praktikum1/*", []}.
+{["src/praktikum1/dlq", "src/praktikum1/hbq", "src/praktikum1/server", "src/praktikum1/client"], []}.

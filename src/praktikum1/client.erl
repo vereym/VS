@@ -175,7 +175,7 @@ leserLoop(RMEM, Server, ClientName, LogFile) ->
             true ->
                 % 5 & 6
                 IsEigenerRedakteur = isEigenerRedakteur(Msg, ClientName),
-                NewMsg =
+                NewMsg = %Msg,
                     if
                         % 7
                         IsEigenerRedakteur -> Msg ++ "*******";
