@@ -8,25 +8,31 @@
 -import(util, [logging/2]).
 -import(io_lib, [format/2]).
 
+% Initialisiert und startet den Server.
 start() ->
-    % config auslesen
+    % 1
     {ok, ServerConfig} = file:consult("server.cfg"),
     {ok, DLQLimit} = get_config_value(dlqlimit, ServerConfig),
     {ok, HBQName} = get_config_value(hbqname, ServerConfig),
     {ok, ServerName} = get_config_value(servername, ServerConfig),
     {ok, RemTime} = get_config_value(clientlifetime, ServerConfig),
     {ok, Latency} = get_config_value(latency, ServerConfig),
-
+    % 2
     HBQ = initHBQ(DLQLimit, HBQName),
     {ok, HostName} = inet:gethostname(),
+    % 3
     LogFile = format("Server@~s.log", [HostName]),
+    % 4
     CMEM = initCMEM(RemTime, LogFile),
+    % 5
     register(ServerName, self()),
+    % 6
     Timer = timer:send_after(Latency * 1000, {terminateServer}),
+    % 7
     loop(1, Latency, HBQ, CMEM, Timer, LogFile).
 
 loop(NNrCounter, Latency, HBQ, CMEM, Timer, LogFile) ->
-    % 3 - neue Nachricht empfangen
+    % 3
     receive
         {ClientID, getmessages} ->
             NewTimer = reset_timer(Timer, Latency, {terminateServer}),
@@ -42,7 +48,7 @@ loop(NNrCounter, Latency, HBQ, CMEM, Timer, LogFile) ->
                 end,
             if
                 ActualNNr == -1 -> NewCMEM = CMEM;
-                true -> NewCMEM = updateClient(CMEM, ClientID, ActualNNr + 1, LogFile)
+                true -> NewCMEM = updateClient(CMEM, ClientID, ActualNNr, LogFile)
             end,
             loop(NNrCounter, Latency, HBQ, NewCMEM, NewTimer, LogFile);
         {dropmessage, Message = [_NNR, _Msg, _TSclientout]} ->

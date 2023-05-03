@@ -212,6 +212,8 @@ checkFuture(MsgString, TSclientout, TShbqin, TSdlqout, TSclientin, LogFile, NNr)
             end
     end.
 
+% Hilfsfunktion für checkFuture/7.
+% Wandelt einen Zeitstempel in eine Zeit in Sekunden um.
 tsToSeconds({MegaSecs, Secs, _MicroSecs}) ->
     MegaSecs * 1000000 + Secs.
 
