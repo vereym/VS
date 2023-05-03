@@ -63,14 +63,14 @@ loop(DLQ, HBQ, LogFile) ->
         % 9
         {request, listHBQ} ->
             % 10
-            vsutil:logging(LogFile, io_lib:format("HBQ = ~p", [HBQ])),
+            vsutil:logging(LogFile, io_lib:format("HBQ = ~p~n", [HBQ])),
             % 11
             ServerID ! {reply, ok},
             loop(DLQ, HBQ, LogFile);
         % 12
         {request, listDLQ} ->
             % 13
-            vsutil:logging(LogFile, io_lib:format("DLQ = ~p", [DLQ])),
+            vsutil:logging(LogFile, io_lib:format("DLQ = ~p~n", [DLQ])),
             % 14
             ServerID ! {reply, ok},
             loop(DLQ, HBQ, LogFile);
@@ -92,7 +92,7 @@ pushHBQ(HBQ = [[SmallestHBQ | _] | _], DLQ, LogFile, Message = [NNr | _]) ->
     case NNr < ExpectedNNr of
         true ->
             % 3
-            vsutil:logging(LogFile, io_lib:format("HBQ: ~p wurde verworfen", [Message])),
+            vsutil:logging(LogFile, io_lib:format("HBQ: ~p wurde verworfen~n", [Message])),
             % 4
             discarded;
         %                5
@@ -110,10 +110,10 @@ pushHBQ(HBQ = [[SmallestHBQ | _] | _], DLQ, LogFile, Message = [NNr | _]) ->
                     LastMissingNNr = SmallestHBQ - 1,
                     % 12, 13
                     Fehlernachricht =
-                        io_lib:format("***Fehlernachricht fuer Nachrichtennummern ~B bis ~B um <Zeitstempel>",
+                        io_lib:format("HBQ: ***Fehlernachricht fuer Nachrichtennummern ~B bis ~B um <Zeitstempel>~n",
                                       [SmallestHBQ, LastMissingNNr]),
                     % 14
-                    vsutil:logging(LogFile, io_lib:format("HBQ: ~p", [Fehlernachricht])),
+                    vsutil:logging(LogFile, io_lib:format("HBQ: ~p~n", [Fehlernachricht])),
                     % 15
                     {Fehlernachricht, NewHBQ}
             end
@@ -149,7 +149,7 @@ pushDLQ(ok, _HBQ = [FirstMsg = [FirstNNr | _] | Tail], DLQ, LogFile) ->
 pushDLQ(Fehlernachricht, HBQ, DLQ, LogFile) ->
     %% TODO: wie kann man feststellen, dass es sich um die Fehlernachricht handelt?
     %% alles andere als ok?
-    vsutil:logging(LogFile, io_lib:format("HBQ: ~p wurde zur DLQ gepusht", [Fehlernachricht])),
+    vsutil:logging(LogFile, io_lib:format("HBQ: ~p wurde zur DLQ gepusht~n", [Fehlernachricht])),
     %                   2
     NewDLQ = push2DLQ(Fehlernachricht, DLQ, LogFile),
     %            4

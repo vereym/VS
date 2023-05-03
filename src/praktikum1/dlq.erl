@@ -40,7 +40,7 @@ push2DLQ([NNr, TextMsg, TSclientout, TShbqin], Queue = {Capacity, Messages}, Log
     NewMsg = [NNr, TextMsg ++ now2string(TSdlqin), TSclientout, TShbqin, TSdlqin],
 
     % 7
-    logging(LogFile, io_lib:format("~p wurde in die DLQ eingefügt.", [NewMsg])),
+    logging(LogFile, io_lib:format("DLQ: ~p wurde in die DLQ eingefügt.~n", [NewMsg])),
 
     %               3                 4
     NewQueue =
@@ -112,7 +112,7 @@ deliverMSG(MSGNr, ClientPID, Queue, LogFile) ->
             TSdlqout = erlang:timestamp(),
             NewMessage = Message ++ TSdlqout,
             ClientPID ! {reply, NewMessage, Terminated},
-            logging(LogFile, io_lib:format("~p wurde an ~B gesendet.", [NewMessage, ClientPID])),
+            logging(LogFile, io_lib:format("DLQ: ~p wurde an ~B gesendet.~n", [NewMessage, ClientPID])),
             MSGNr
     end.
 
@@ -142,7 +142,7 @@ getMessageByNr(NNr, {_Capacity, List}, LogFile) ->
     getMessageByNr(NNr, List, LogFile);
 %%                  2
 getMessageByNr(NNr, [], LogFile) ->
-    logging(LogFile, io_lib:format("NNr=~B wurde nicht in DLQ gefunden.", [NNr])),
+    logging(LogFile, io_lib:format("NNr=~B wurde nicht in DLQ gefunden.~n", [NNr])),
     nok;
 %%                             3, 5
 getMessageByNr(NNr, Message = [NNr | _Tail], _LogFile) ->
