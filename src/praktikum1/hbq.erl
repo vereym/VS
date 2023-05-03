@@ -56,12 +56,13 @@ loop(DLQ, HBQ, LogFile) ->
             % 3
             {Return, NewHBQ} = pushHBQ(HBQ, DLQ, LogFile, Msg),
             % 4
-            NewDLQ = pushDLQ(Return, HBQ, DLQ, LogFile),
+            {NewDLQ, UpdatedHBQ} = pushDLQ(Return, NewHBQ, DLQ, LogFile),
             % 5
             ServerID ! {reply, ok},
-            loop(NewDLQ, NewHBQ, LogFile);
+            loop(NewDLQ, UpdatedHBQ, LogFile);
         % 6
         {request, deliverMSG, NNr, ToClient} ->
+            logging(LogFile, io_lib:format("HBQ: Nachricht ~p ~p bekommen.~n", [deliverMSG, NNr])),
             % 7
             SendNNr = deliverMSG(NNr, ToClient, DLQ, LogFile),
             % 8
@@ -69,6 +70,7 @@ loop(DLQ, HBQ, LogFile) ->
             loop(DLQ, HBQ, LogFile);
         % 9
         {request, listHBQ} ->
+            logging(LogFile, io_lib:format("HBQ: Nachricht ~p bekommen.~n", [listHBQ])),
             % 10
             logging(LogFile, io_lib:format("HBQ = ~p~n", [HBQ])),
             % 11
@@ -76,6 +78,7 @@ loop(DLQ, HBQ, LogFile) ->
             loop(DLQ, HBQ, LogFile);
         % 12
         {request, listDLQ} ->
+            logging(LogFile, io_lib:format("HBQ: Nachricht ~p bekommen.~n", [listDLQ])),
             % 13
             logging(LogFile, io_lib:format("DLQ = ~p~n", [DLQ])),
             % 14
@@ -83,6 +86,7 @@ loop(DLQ, HBQ, LogFile) ->
             loop(DLQ, HBQ, LogFile);
         % 15
         {request, delHBQ} ->
+            logging(LogFile, io_lib:format("HBQ: Nachricht ~p bekommen.~n", [delHBQ])),
             % 16
             ServerID ! ok
     end.
@@ -122,10 +126,11 @@ pushHBQ(HBQ, DLQ, LogFile, Message = [NNr | _]) ->
                     LastMissingNNr = SmallestHBQ - 1,
                     % 12, 13
                     Fehlernachricht =
-                        io_lib:format(
-                            "HBQ: ***Fehlernachricht fuer Nachrichtennummern ~B bis ~B um ~s~n",
-                            [SmallestHBQ, LastMissingNNr, now2string(TShbqin)]
-                        ),
+                        % 14
+                        [LastMissingNNr,
+                         io_lib:format("HBQ: ***Fehlernachricht fuer Nachrichtennummern ~B bis ~B um "
+                                       "~s~n",
+                                       [SmallestHBQ, LastMissingNNr, now2string(TShbqin)])],
                     % 14
                     logging(LogFile, io_lib:format("HBQ: ~p~n", [Fehlernachricht])),
                     % 15
@@ -135,10 +140,8 @@ pushHBQ(HBQ, DLQ, LogFile, Message = [NNr | _]) ->
 
 add2HBQ(Elem, []) ->
     [Elem];
-add2HBQ(
-    Elem = [ElemNNr | _ElemTail],
-    Messages = [Msg = [MsgNNr | _MsgTail] | MessagesTail]
-) ->
+add2HBQ(Elem = [ElemNNr | _ElemTail],
+        Messages = [Msg = [MsgNNr | _MsgTail] | MessagesTail]) ->
     case ElemNNr < MsgNNr of
         true ->
             [Elem | Messages];
@@ -148,11 +151,11 @@ add2HBQ(
 
 %% @doc Verschiebt so viele Nachrichten wie möglich aus der HBQ in die DLQ.
 %% Dies führt zu einem Leeren der HBQ, solange es dort keine Lücken gibt.
-%% @end
+%% @end von uns, nicht in der Schnittstelle
 %%       3   4
 pushDLQ(ok, [], DLQ, _LogFile) ->
     % 11
-    DLQ;
+    {DLQ, []};
 %%             6                     7
 pushDLQ(ok, _HBQ = [FirstMsg = [FirstNNr | _] | Tail], DLQ, LogFile) ->
     % 5
@@ -166,12 +169,12 @@ pushDLQ(ok, _HBQ = [FirstMsg = [FirstNNr | _] | Tail], DLQ, LogFile) ->
             pushDLQ(ok, Tail, NewDLQ, LogFile);
         false ->
             % 11
-            DLQ
+            {DLQ, Tail}
     end;
+pushDLQ(discarded, HBQ, DLQ, _LogFile) ->
+    {DLQ, HBQ};
 %%           1
 pushDLQ(Fehlernachricht, HBQ, DLQ, LogFile) ->
-    %% TODO: wie kann man feststellen, dass es sich um die Fehlernachricht handelt?
-    %% alles andere als ok?
     logging(LogFile, io_lib:format("HBQ: ~p wurde zur DLQ gepusht~n", [Fehlernachricht])),
     %                   2
     NewDLQ = push2DLQ(Fehlernachricht, DLQ, LogFile),
