@@ -6,19 +6,22 @@
 -import(vsutil, [get_config_value/2, now2string/1, now2stringD/1, meinSleep/1, validTS/1, diffTS/2]).
 -import(io_lib, [format/2]).
 
+% Initialisiert und startet alle Client-Prozesse.
 start() ->
-    % config auslesen
+    % 1
     {ok, ClientConfig} = file:consult("client.cfg"),
     {ok, Clients} = get_config_value(clients, ClientConfig),
     {ok, LifeTime} = get_config_value(lifetime, ClientConfig),
     {ok, SendeIntervall} = get_config_value(sendeintervall, ClientConfig),
     {ok, ServerName} = get_config_value(servername, ClientConfig),
     {ok, ServerNode} = get_config_value(servernode, ClientConfig),
-
-    startClients(Clients, LifeTime, SendeIntervall, ServerName, ServerNode, Clients).
-
-startClients(Clients, _LifeTime, _SendeIntervall, _ServerName, _ServerNode, 0) ->
     {ok, HostName} = inet:gethostname(),
+    % 3
+    startClients(Clients, LifeTime, SendeIntervall, ServerName, ServerNode, HostName, Clients).
+
+% Hilfsfunktion für start/0.
+% Stellt die Schleife im Entwurf dar.
+startClients(Clients, _LifeTime, _SendeIntervall, _ServerName, _ServerNode, HostName, 0) ->
     LogFile = format("ClientStarter@~s.log", [HostName]),
     logging(
         LogFile,
@@ -26,17 +29,16 @@ startClients(Clients, _LifeTime, _SendeIntervall, _ServerName, _ServerNode, 0) -
             now2string(erlang:timestamp()), Clients
         ])
     );
-startClients(Clients, LifeTime, SendeIntervall, ServerName, ServerNode, Counter) ->
+startClients(Clients, LifeTime, SendeIntervall, ServerName, ServerNode, HostName, Counter) ->
+    ClientName = format("Client~B@~s210", [Clients - Counter, HostName]),
+    startClient(LifeTime, SendeIntervall, ServerName, ServerNode, ClientName),
+    startClients(Clients, LifeTime, SendeIntervall, ServerName, ServerNode, HostName, Counter - 1).
+
+startClient(LifeTime, SendeIntervall, ServerName, ServerNode, ClientName) ->
     {IntervalMin, IntervalMax} = SendeIntervall,
     [Delay] = randomliste(1, IntervalMin, IntervalMax),
-    {ok, HostName} = inet:gethostname(),
     % Gruppe 2 Team 10
-    ClientName = format("Client~B@~s210", [Clients - Counter, HostName]),
     LogFile = format("~s.log", [ClientName]),
-    spawn(fun() -> startClient(LifeTime, Delay, ServerName, ServerNode, ClientName, LogFile) end),
-    startClients(Clients, LifeTime, SendeIntervall, ServerName, ServerNode, Counter - 1).
-
-startClient(LifeTime, Delay, ServerName, ServerNode, ClientName, LogFile) ->
     case net_adm:ping(ServerNode) of
         pang ->
             logging(
@@ -44,8 +46,11 @@ startClient(LifeTime, Delay, ServerName, ServerNode, ClientName, LogFile) ->
                 format("Server-Node ~s konnte nicht gefunden werden.~n", [ServerNode])
             );
         pong ->
-            erlang:send_after(LifeTime * 1000, self(), {terminateClient}),
-            loop([], LifeTime, Delay, {ServerName, ServerNode}, ClientName, LogFile)
+            spawn(
+                fun() ->
+                    erlang:send_after(LifeTime * 1000, self(), {terminateClient}),
+                    loop([], LifeTime, Delay, {ServerName, ServerNode}, ClientName, LogFile)
+                end)
     end.
 
 loop(RMEM, LifeTime, Delay, Server, ClientName, LogFile) ->
@@ -111,7 +116,7 @@ leserLoop(RMEM, Server, ClientName, LogFile) ->
     [NNr, Msg, TSclientout, TShbqin, _TSdlqin, TSdlqout] = Message,
     TSclientin = erlang:timestamp(),
     {Repetition, Amount, NewRMEM} = updateReadMsgMEM(RMEM, NNr),
-    % andere Schritte überspringen, wenn Nachricht zum wiederholten Mal empfangen wird
+    % Andere Schritte überspringen, wenn Nachricht zum wiederholten Mal empfangen wird.
     MsgString =
         if
             Repetition ->
