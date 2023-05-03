@@ -31,12 +31,25 @@ start() ->
     % 7
     loop(1, Latency, HBQ, CMEM, Timer, LogFile).
 
+% Empfängt und verarbeitet kontinuierlich Nachrichten im Server-Prozess, bis dieser automatisch nach einer Zeit von Latency beendet wird.
+% HBQ ist hier die PID des HBQ-Prozesses. Es gibt die folgenden Schnittstellen:
+% - getmessages: liefert eine weitere Nachricht an den Client aus und updated anschließend das CMEM
+%
+% - dropmessage: speichert die mitgelieferte Nachricht in der HBQ ab, dazu wird die Anfrage an den HBQ-Prozess weitergeleitet
+%
+% - getmsgid: sendet dem Client die nächste eindeutige Nachrichtennummer zurück und erhöht anschließend den NNr-Counter
+%
+% - listDLQ/HBQ/CMEM: bewirkt ein Logging der DLQ/HBQ/CMEM in einer Datei
 loop(NNrCounter, Latency, HBQ, CMEM, Timer, LogFile) ->
-    % 3
+    % 1
     receive
+        % 3
         {ClientID, getmessages} ->
+            % 2
             NewTimer = reset_timer(Timer, Latency, {terminateServer}),
+            % 4
             ClientNNr = getClientNNr(CMEM, ClientID),
+            % 5
             HBQ ! {self(), {request, deliverMSG, ClientNNr, ClientID}},
             ActualNNr =
                 receive
@@ -46,37 +59,54 @@ loop(NNrCounter, Latency, HBQ, CMEM, Timer, LogFile) ->
                     logging(LogFile, "Keine Antwort von der HBQ erhalten. Server terminiert"),
                     exit(normal)
                 end,
+            % 6
             if
                 ActualNNr == -1 -> NewCMEM = CMEM;
+                %                       7
                 true -> NewCMEM = updateClient(CMEM, ClientID, ActualNNr, LogFile)
             end,
             loop(NNrCounter, Latency, HBQ, NewCMEM, NewTimer, LogFile);
+        % 8
         {dropmessage, Message = [_NNR, _Msg, _TSclientout]} ->
+            % 2
             NewTimer = reset_timer(Timer, Latency, {terminateServer}),
+            % 9 & 10
             send_msg(HBQ, {self(), {request, pushHBQ, Message}}, LogFile),
             loop(NNrCounter, Latency, HBQ, CMEM, NewTimer, LogFile);
+        % 11
         {ClientID, getmsgid} ->
+            % 2
             NewTimer = reset_timer(Timer, Latency, {terminateServer}),
+            % 12
             ClientID ! {nid, NNrCounter},
+            %    13
             loop(NNrCounter + 1, Latency, HBQ, CMEM, NewTimer, LogFile);
-        % 16
+        % 14
         {_ClientID, listDLQ} ->
+            % 2
             NewTimer = reset_timer(Timer, Latency, {terminateServer}),
+            % 15 & 16
             send_msg(HBQ, {self(), {request, listDLQ}}, LogFile),
             loop(NNrCounter, Latency, HBQ, CMEM, NewTimer, LogFile);
-        % 19
+        % 17
         {_ClientID, listHBQ} ->
+            % 2
             NewTimer = reset_timer(Timer, Latency, {terminateServer}),
+            % 18 & 19
             send_msg(HBQ, {self(), {request, listHBQ}}, LogFile),
             loop(NNrCounter, Latency, HBQ, CMEM, NewTimer, LogFile);
-        % 22
+        % 20
         {_ClientID, listCMEM} ->
+            % 2
             NewTimer = reset_timer(Timer, Latency, {terminateServer}),
+            % 21
             logging(LogFile, format("~p~n", [listCMEM(CMEM)])),
             loop(NNrCounter, Latency, HBQ, CMEM, NewTimer, LogFile);
+        % Beenden des Servers bei Ablauf vom Timer.
         {terminateServer} ->
             logging(LogFile, "Server nach Ablauf seiner Latency terminiert.~n"),
             exit(normal);
+        % Abfangen jeder beliebigen Nachricht.
         Any ->
             logging(
                 LogFile,
@@ -88,8 +118,10 @@ loop(NNrCounter, Latency, HBQ, CMEM, Timer, LogFile) ->
             ok
     end.
 
-send_msg(PID, Message, LogFile) ->
-    PID ! Message,
+% Hilfsfunktion für loop/6.
+% Sendet eine Nachricht an die HBQ und wartet auf ein {reply, ok} als Antwort.
+send_msg(HBQ, Message, LogFile) ->
+    HBQ ! Message,
     receive
         {reply, ok} ->
             ok
