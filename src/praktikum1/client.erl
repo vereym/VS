@@ -56,38 +56,60 @@ startClient(LifeTime, SendeIntervall, ServerName, ServerNode, ClientName) ->
             spawn(
                 fun() ->
                     startLoop(LifeTime, Delay, Server, ClientName, LogFile)
-                end)
+                end
+            )
     end.
 
 % Hilfsfunktion für startClient/5.
 startLoop(LifeTime, Delay, Server, ClientName, LogFile) ->
     % 5
     timer:send_after(LifeTime * 1000, {terminateClient}),
-    % 6
+    % 6 & Schritt 1 im Entwurf von loop
     loop([], LifeTime, Delay, Server, ClientName, LogFile).
 
+% Wechselt kontinuierlich zwischen Redakteur und Leser, bis der Client beendet wird.
+% Merkt sich die bereits erhaltenen Nachrichtennummern auch zwischen den Leser-Wechseln im RMEM.
 loop(RMEM, LifeTime, Delay, Server, ClientName, LogFile) ->
+    % 3
     redakteur(Delay, Server, ClientName, LogFile),
+    % 4
     NewRMEM = leser(RMEM, Server, ClientName, LogFile),
+    % 5
     NewDelay = randomizeDelay(Delay),
+    % 2
     loop(NewRMEM, LifeTime, NewDelay, Server, ClientName, LogFile).
 
+% Sendet in regelmäßigen Abständen 5 Nachrichten an einen Server, fragt anschließend eine weitere
+% Nachrichtennummer an und bricht dann ab. Die dadurch angefragte aber "vergessene" Nachricht wird
+% in einer Datei geloggt.
 redakteur(Delay, Server, ClientName, LogFile) ->
+    % 1
     redakteurLoop(Delay, Server, ClientName, LogFile, 5),
+    % 8 & 9
     NNr = getNNr(Server, ClientName, LogFile),
     Now = now2string(erlang:timestamp()),
+    % 10
     logging(LogFile, format("~Bte_Nachricht um ~svergessen zu senden ******", [NNr, Now])).
 
+% Hilfsfunktion für redakteur/4.
+% Stellt die Schleife im Entwurf dar.
 redakteurLoop(_Delay, _Server, _ClientName, _LogFile, 0) ->
     ok;
 redakteurLoop(Delay, Server, ClientName, LogFile, Counter) ->
+    % 2 & 3
     NNr = getNNr(Server, ClientName, LogFile),
+    % 4
     TSclientout = erlang:timestamp(),
+    % 5
     Msg = format("~s: ~Bte_Nachricht. C Out: ~s~n", [ClientName, NNr, now2string(TSclientout)]),
+    % 6
     Server ! {dropmessage, [NNr, Msg, TSclientout]},
+    % 7
     meinSleep(Delay * 1000),
     redakteurLoop(Delay, Server, ClientName, LogFile, Counter - 1).
 
+% Hilfsfunktion für redakteur/4.
+% Fragt eine eindeutige Nachrichtennummer beim Server an.
 getNNr(Server, ClientName, LogFile) ->
     Server ! {self(), getmsgid},
     receive
@@ -106,23 +128,31 @@ getNNr(Server, ClientName, LogFile) ->
         exit(normal)
     end.
 
+% Vergrößert oder verkleinert zufällig das übergebene Delay um 50%.
+% Hierbei wird jedoch nie ein Minimum von 2 Sekunden unterschritten.
 randomizeDelay(Delay) ->
+    % 3
     [Random] = randomliste(1, 0, 1),
-    Return =
-        if
-            (0.5 * Delay) < 2 ->
-                Delay * 1.5;
-            true ->
-                if
-                    Random == 1 -> Delay * 1.5;
-                    true -> Delay * 0.5
-                end
-        end,
-    Return.
+    % 1 & 4
+    if
+        (0.5 * Delay) < 2 ->
+            % 2
+            Delay * 1.5;
+        true ->
+            % 3
+            if
+                Random == 1 -> Delay * 1.5;
+                true -> Delay * 0.5
+            end
+    end.
 
+% Liest Nachrichten vom Server und loggt diese in einer Datei. Außerdem werden die erhaltenen Nachrichten um Informationen zu folgenden Ereignissen ergänzt:
+% - die Nachricht stammt vom eigenen Redakteur ("*******")
+% - die Nachricht kommt "aus der Zukunft" 
+% - die Nachricht wurde zum wiederholten Mal erhalten
 leser(RMEM, Server, ClientName, LogFile) ->
-    leserLoop(RMEM, Server, ClientName, LogFile),
-    RMEM.
+    % 1
+    leserLoop(RMEM, Server, ClientName, LogFile).
 
 leserLoop(RMEM, Server, ClientName, LogFile) ->
     {Message, Terminated} = getNewMessage(Server, ClientName, LogFile),
@@ -146,10 +176,11 @@ leserLoop(RMEM, Server, ClientName, LogFile) ->
     logging(LogFile, format("~s ; C In: ~s", [MsgString, now2string(TSclientin)])),
     if
         Terminated ->
-            leserLoop(NewRMEM, Server, ClientName, LogFile);
+            logging(LogFile, "Leser terminiert~n");
         true ->
-            logging(LogFile, "Leser terminiert~n")
-    end.
+            leserLoop(NewRMEM, Server, ClientName, LogFile)
+    end,
+    NewRMEM.
 
 getNewMessage(Server, ClientName, LogFile) ->
     Server ! {self(), getmessages},
