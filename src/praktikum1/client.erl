@@ -154,37 +154,55 @@ leser(RMEM, Server, ClientName, LogFile) ->
     % 1
     leserLoop(RMEM, Server, ClientName, LogFile).
 
+% Hilfsfunktion für leser/4.
+% Stellt die Schleife im Entwurf dar.
 leserLoop(RMEM, Server, ClientName, LogFile) ->
+    % 2 & 3
     {Message, Terminated} = getNewMessage(Server, ClientName, LogFile),
+    % 4
     [NNr, Msg, TSclientout, TShbqin, _TSdlqin, TSdlqout] = Message,
+    % 8
     TSclientin = erlang:timestamp(),
+    % 14
     {Repetition, Amount, NewRMEM} = updateReadMsgMEM(RMEM, NNr),
     % Andere Schritte überspringen, wenn Nachricht zum wiederholten Mal empfangen wird.
     MsgString =
+        % 15
         if
             Repetition ->
+                % 16
                 format(">>>Wiederholung<<<: Nummer ~B zum ~B-ten mal erhalten.", [NNr, Amount]);
             true ->
+                % 5 & 6
                 IsEigenerRedakteur = isEigenerRedakteur(Msg, ClientName),
                 NewMsg =
                     if
+                        % 7
                         IsEigenerRedakteur -> Msg ++ "*******";
                         true -> Msg
                     end,
+                % 10 - 13
                 checkFuture(NewMsg, TSclientout, TShbqin, TSdlqout, TSclientin, LogFile, NNr)
         end,
+    % 17                                                 9 & 16
     logging(LogFile, format("~s ; C In: ~s", [MsgString, now2string(TSclientin)])),
+    % 1
     if
         Terminated ->
             logging(LogFile, "Leser terminiert~n");
         true ->
             leserLoop(NewRMEM, Server, ClientName, LogFile)
     end,
+    % 18
     NewRMEM.
 
+% Hilfsfunktion für leser/4.
+% Fragt eine neue Nachricht beim Server an.
 getNewMessage(Server, ClientName, LogFile) ->
+    % 2
     Server ! {self(), getmessages},
     receive
+        % 3
         {reply, Message, Terminated} ->
             {Message, Terminated};
         {terminateClient} ->
@@ -200,16 +218,23 @@ getNewMessage(Server, ClientName, LogFile) ->
         exit(normal)
     end.
 
+% Hilfsfunktion für leserLoop/4.
+% Überprüft, ob eine erhaltene Nachricht vom eigenen Redakteur stammt.
 isEigenerRedakteur(MsgString, ClientName) ->
+    % 5
     Name = parseUntilChar(MsgString, ":"),
+    % 6
     if
         Name == ClientName -> true;
         true -> false
     end.
 
+% Hilfsfunktion für isEigenerRedakteur/2.
+% Parsed einen String und gibt alle Character bis zu einem übergebenen Symbol zurück.
 parseUntilChar(String, SplitChar) ->
     parseLogic(String, hd(SplitChar)).
 
+% Hilfsfunktion für parseUntilChar/2.
 parseLogic([], _SplitChar) ->
     [];
 parseLogic([SplitChar | _T], SplitChar) ->
@@ -217,6 +242,8 @@ parseLogic([SplitChar | _T], SplitChar) ->
 parseLogic([H | T], SplitChar) ->
     [H | parseLogic(T, SplitChar)].
 
+% Hilfsfunktion für leserLoop/4.
+% Überprüft, ob eine Nachricht aus Zukunft erhalten wurde und macht ggf. Anpassungen an diese.
 checkFuture(MsgString, TSclientout, TShbqin, TSdlqout, TSclientin, LogFile, NNr) ->
     case validateTimestamps(TSclientout, TShbqin, TSdlqout, TSclientin) of
         {false, false, _, _} ->
@@ -240,21 +267,29 @@ checkFuture(MsgString, TSclientout, TShbqin, TSdlqout, TSclientin, LogFile, NNr)
             ),
             MsgString;
         _AllTrue ->
+            % 10
             TimeDifferenceServer = diffTS(TShbqin, TSclientout),
             TDServerInS = tsToSeconds(TimeDifferenceServer),
+            % 12
             TimeDifferenceLeser = diffTS(TSclientin, TSdlqout),
             TDLeserInS = tsToSeconds(TimeDifferenceLeser),
+            % 11
             ZukunftServer = ">**Nachricht aus der Zukunft fuer Server:",
+            % 13
             ZukunftLeser = ">**Nachricht aus der Zukunft fuer Leser:",
             NewMsgString =
+                % 10
                 if
                     TDServerInS < 0 ->
+                        % 11
                         MsgString ++ ZukunftServer ++ now2string(TimeDifferenceServer);
                     true ->
                         MsgString
                 end,
             if
+                % 12
                 TDLeserInS < 0 ->
+                    % 13
                     NewMsgString ++ ZukunftLeser ++ now2string(TimeDifferenceLeser);
                 true ->
                     NewMsgString
@@ -266,24 +301,43 @@ checkFuture(MsgString, TSclientout, TShbqin, TSdlqout, TSclientin, LogFile, NNr)
 tsToSeconds({MegaSecs, Secs, _MicroSecs}) ->
     MegaSecs * 1000000 + Secs.
 
+% Hilfsfunktion für checkFuture/7.
+% Validiert die übergebenen Zeitstempel.
 validateTimestamps(TS1, TS2, TS3, TS4) ->
     {validTS(TS1), validTS(TS2), validTS(TS3), validTS(TS4)}.
 
+% Aktualisiert das ReadMsgMEM. Gibt zurück, ob dieübergebene NNr bereits im RMEM enthalten war,
+% die Anzahl der Wiederholungen der angefragten Nachricht, sowie das aktualisierte RMEM.
 updateReadMsgMEM(RMEM, NNr) ->
+    %                1
     {Bool, Amount} = readFromRMEM(RMEM, NNr),
+    %         1
     NewRMEM = updateRMEM(RMEM, NNr),
+    % 8
     {Bool, Amount, NewRMEM}.
 
-updateRMEM([], NNr) ->
-    [{NNr, 1}];
-updateRMEM([{NNr, Amount} | T], NNr) ->
-    [{NNr, Amount + 1} | T];
-updateRMEM([H | T], NNr) ->
-    [H | updateRMEM(T, NNr)].
-
+% Hilfsfunktion für updateReadMsgMEM/2.
+% Prüft, ob eine übergebene Nachrichtennummer bereits erhalten wurde und wie oft dies geschehen ist.
+%            2
 readFromRMEM([], _NNr) ->
+    % 7
     {false, 0};
+%            2        3
 readFromRMEM([{NNr, Amount} | _T], NNr) ->
+    % 5
     {true, Amount};
 readFromRMEM([_H | T], NNr) ->
     readFromRMEM(T, NNr).
+
+% Hilfsfunktion für updateReadMsgMEM/2.
+% Aktualisiert das RMEM für eine übergebene Nachrichtennummer.
+%          2
+updateRMEM([], NNr) ->
+    % 6
+    [{NNr, 1}];
+%          2        3
+updateRMEM([{NNr, Amount} | T], NNr) ->
+    %          4
+    [{NNr, Amount + 1} | T];
+updateRMEM([H | T], NNr) ->
+    [H | updateRMEM(T, NNr)].
