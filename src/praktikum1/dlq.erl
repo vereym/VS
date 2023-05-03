@@ -116,7 +116,8 @@ deliverMSG(MSGNr, ClientPID, Queue = {_Capacity, Messages}, LogFile) ->
                        false
                 end,
             TSdlqout = erlang:timestamp(),
-            NewMessage = Message ++ TSdlqout,
+            [NNr, Msg, TSclientout, TShbqin, TSdlqin] = Message,
+            NewMessage = [NNr, Msg ++ now2string(TSdlqout), TSclientout, TShbqin, TSdlqin, TSdlqout],
             ClientPID ! {reply, NewMessage, Terminated},
             logging(LogFile,
                     io_lib:format("DLQ: ~p wurde an ~p gesendet.~n", [NewMessage, ClientPID])),

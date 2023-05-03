@@ -89,7 +89,7 @@ redakteur(Delay, Server, ClientName, LogFile) ->
     NNr = getNNr(Server, ClientName, LogFile),
     Now = now2string(erlang:timestamp()),
     % 10
-    logging(LogFile, format("~Bte_Nachricht um ~svergessen zu senden ******", [NNr, Now])).
+    logging(LogFile, format("~Bte_Nachricht um ~svergessen zu senden ******~n", [NNr, Now])).
 
 % Hilfsfunktion für redakteur/4.
 % Stellt die Schleife im Entwurf dar.
@@ -185,7 +185,7 @@ leserLoop(RMEM, Server, ClientName, LogFile) ->
                 checkFuture(NewMsg, TSclientout, TShbqin, TSdlqout, TSclientin, LogFile, NNr)
         end,
     % 17                                                 9 & 16
-    logging(LogFile, format("~s ; C In: ~s", [MsgString, now2string(TSclientin)])),
+    logging(LogFile, format("~s ; C In: ~s~n", [MsgString, now2string(TSclientin)])),
     % 1
     if
         Terminated ->
@@ -251,7 +251,7 @@ checkFuture(MsgString, TSclientout, TShbqin, TSdlqout, TSclientin, LogFile, NNr)
                 LogFile,
                 format(
                     "Nachricht #~B: Ungueltige Zeitstempel. Ueberpruefung fuer Nachricht aus "
-                    "der Zukunft beim Server kann nicht durchgeführt werden.",
+                    "der Zukunft beim Server kann nicht durchgeführt werden.~n",
                     [NNr]
                 )
             ),
@@ -261,7 +261,7 @@ checkFuture(MsgString, TSclientout, TShbqin, TSdlqout, TSclientin, LogFile, NNr)
                 LogFile,
                 format(
                     "Nachricht #~B: Ungueltige Zeitstempel. Ueberpruefung fuer Nachricht aus "
-                    "der Zukunft beim Leser kann nicht durchgeführt werden.",
+                    "der Zukunft beim Leser kann nicht durchgeführt werden.~n",
                     [NNr]
                 )
             ),
