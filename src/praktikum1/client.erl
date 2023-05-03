@@ -34,6 +34,7 @@ startClients(Clients, LifeTime, SendeIntervall, ServerName, ServerNode, HostName
     startClient(LifeTime, SendeIntervall, ServerName, ServerNode, ClientName),
     startClients(Clients, LifeTime, SendeIntervall, ServerName, ServerNode, HostName, Counter - 1).
 
+% 
 startClient(LifeTime, SendeIntervall, ServerName, ServerNode, ClientName) ->
     {IntervalMin, IntervalMax} = SendeIntervall,
     [Delay] = randomliste(1, IntervalMin, IntervalMax),
@@ -48,10 +49,13 @@ startClient(LifeTime, SendeIntervall, ServerName, ServerNode, ClientName) ->
         pong ->
             spawn(
                 fun() ->
-                    erlang:send_after(LifeTime * 1000, self(), {terminateClient}),
-                    loop([], LifeTime, Delay, {ServerName, ServerNode}, ClientName, LogFile)
+                    startLoop(LifeTime, Delay, {ServerName, ServerNode}, ClientName, LogFile)
                 end)
     end.
+
+startLoop(LifeTime, Delay, Server, ClientName, LogFile) ->
+    timer:send_after(LifeTime * 1000, {terminateClient}),
+    loop([], LifeTime, Delay, Server, ClientName, LogFile).
 
 loop(RMEM, LifeTime, Delay, Server, ClientName, LogFile) ->
     redakteur(Delay, Server, ClientName, LogFile),
