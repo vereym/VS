@@ -28,8 +28,8 @@ expectedNr({_Capacity, []}) ->
     1;
 expectedNr({_Capacity, Queue}) ->
     % 1
-    [[NNr | _] = _Message | _] = reverse(Queue),
-    io:format("NNr = ~p~n", [NNr]),
+    [[NNr | _MessageTail] | _QueueTail] = reverse(Queue),
+    % io:format("NNr = ~p~n", [NNr]),
     NNr + 1.
 
 %% @doc Verschiebt eine Nachricht in die DLQ und ergänzt diese um einen Zeitstempel.

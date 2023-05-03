@@ -121,7 +121,7 @@ getNNr(Server, ClientName, LogFile) ->
     after 7000 ->
         logging(
             LogFile,
-            format("~s aufgrund eines Fehlers terminiert. Keine Antwort vom Server erhalten.~n", [
+            format("~s aufgrund eines Fehlers terminiert. Keine Antwort vom Server erhalten (Redakteur).~n", [
                 ClientName
             ])
         ),
@@ -211,7 +211,7 @@ getNewMessage(Server, ClientName, LogFile) ->
     after 7000 ->
         logging(
             LogFile,
-            format("~s aufgrund eines Fehlers terminiert. Keine Antwort vom Server erhalten.~n", [
+            format("~s aufgrund eines Fehlers terminiert. Keine Antwort vom Server erhalten. (Leser)~n", [
                 ClientName
             ])
         ),
