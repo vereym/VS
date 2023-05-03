@@ -77,7 +77,7 @@ getNNr(Server, ClientName, LogFile) ->
         {terminateClient} ->
             logging(LogFile, format("~s nach Ablauf seiner Lifetime terminiert.~n", [ClientName])),
             exit(normal)
-    after 3000 ->
+    after 7000 ->
         logging(
             LogFile,
             format("~s aufgrund eines Fehlers terminiert. Keine Antwort vom Server erhalten.~n", [
@@ -140,7 +140,7 @@ getNewMessage(Server, ClientName, LogFile) ->
         {terminateClient} ->
             logging(LogFile, format("~s nach Ablauf seiner Lifetime terminiert.~n", [ClientName])),
             exit(normal)
-    after 3000 ->
+    after 7000 ->
         logging(
             LogFile,
             format("~s aufgrund eines Fehlers terminiert. Keine Antwort vom Server erhalten.~n", [
