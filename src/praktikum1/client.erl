@@ -18,9 +18,11 @@ start() ->
     startClients(Clients, LifeTime, SendeIntervall, ServerName, ServerNode, Clients).
 
 startClients(Clients, _LifeTime, _SendeIntervall, _ServerName, _ServerNode, 0) ->
+    {ok, HostName} = inet:gethostname(),
+    LogFile = format("ClientStarter@~s.log", [HostName]),
     logging(
-        "ClientStarter.log",
-        format("~s: Alle ~p Clients erfolgreich gestartet!~n", [
+        LogFile,
+        format("~s: Alle ~B Clients erfolgreich gestartet!~n", [
             now2string(erlang:timestamp()), Clients
         ])
     );
@@ -29,7 +31,7 @@ startClients(Clients, LifeTime, SendeIntervall, ServerName, ServerNode, Counter)
     [Delay] = randomliste(1, IntervalMin, IntervalMax),
     {ok, HostName} = inet:gethostname(),
     % Gruppe 2 Team 10
-    ClientName = format("Client~p@~s210", [Clients - Counter, HostName]),
+    ClientName = format("Client~B@~s210", [Clients - Counter, HostName]),
     LogFile = format("~s.log", [ClientName]),
     spawn(fun() -> startClient(LifeTime, Delay, ServerName, ServerNode, ClientName, LogFile) end),
     startClients(Clients, LifeTime, SendeIntervall, ServerName, ServerNode, Counter - 1).
@@ -47,7 +49,6 @@ startClient(LifeTime, Delay, ServerName, ServerNode, ClientName, LogFile) ->
     end.
 
 loop(RMEM, LifeTime, Delay, Server, ClientName, LogFile) ->
-    %logging(LogFile, format("~p, ~p, ~p, ~s~n", [LifeTime, Delay, Server, ClientName])),
     redakteur(Delay, Server, ClientName, LogFile),
     NewRMEM = leser(RMEM, Server, ClientName, LogFile),
     NewDelay = randomizeDelay(Delay),
@@ -57,14 +58,14 @@ redakteur(Delay, Server, ClientName, LogFile) ->
     redakteurLoop(Delay, Server, ClientName, LogFile, 5),
     NNr = getNNr(Server, ClientName, LogFile),
     Now = now2string(erlang:timestamp()),
-    logging(LogFile, format("~pte_Nachricht um ~svergessen zu senden ******", [NNr, Now])).
+    logging(LogFile, format("~Bte_Nachricht um ~svergessen zu senden ******", [NNr, Now])).
 
 redakteurLoop(_Delay, _Server, _ClientName, _LogFile, 0) ->
     ok;
 redakteurLoop(Delay, Server, ClientName, LogFile, Counter) ->
     NNr = getNNr(Server, ClientName, LogFile),
     TSclientout = erlang:timestamp(),
-    Msg = format("~s: ~pte_Nachricht. C Out: ~s~n", [ClientName, NNr, now2string(TSclientout)]),
+    Msg = format("~s: ~Bte_Nachricht. C Out: ~s~n", [ClientName, NNr, now2string(TSclientout)]),
     Server ! {dropmessage, [NNr, Msg, TSclientout]},
     meinSleep(Delay * 1000),
     redakteurLoop(Delay, Server, ClientName, LogFile, Counter - 1).
@@ -114,7 +115,7 @@ leserLoop(RMEM, Server, ClientName, LogFile) ->
     MsgString =
         if
             Repetition ->
-                format(">>>Wiederholung<<<: Nummer ~p zum ~p-ten mal erhalten.", [NNr, Amount]);
+                format(">>>Wiederholung<<<: Nummer ~B zum ~B-ten mal erhalten.", [NNr, Amount]);
             true ->
                 IsEigenerRedakteur = isEigenerRedakteur(Msg, ClientName),
                 NewMsg =
@@ -173,7 +174,7 @@ checkFuture(MsgString, TSclientout, TShbqin, TSdlqout, TSclientin, LogFile, NNr)
             logging(
                 LogFile,
                 format(
-                    "Nachricht #~p: Ungueltige Zeitstempel. Ueberpruefung fuer Nachricht aus "
+                    "Nachricht #~B: Ungueltige Zeitstempel. Ueberpruefung fuer Nachricht aus "
                     "der Zukunft beim Server kann nicht durchgeführt werden.",
                     [NNr]
                 )
@@ -183,7 +184,7 @@ checkFuture(MsgString, TSclientout, TShbqin, TSdlqout, TSclientin, LogFile, NNr)
             logging(
                 LogFile,
                 format(
-                    "Nachricht #~p: Ungueltige Zeitstempel. Ueberpruefung fuer Nachricht aus "
+                    "Nachricht #~B: Ungueltige Zeitstempel. Ueberpruefung fuer Nachricht aus "
                     "der Zukunft beim Leser kann nicht durchgeführt werden.",
                     [NNr]
                 )

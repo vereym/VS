@@ -23,7 +23,7 @@ start() ->
     CMEM = initCMEM(RemTime, LogFile),
     register(ServerName, self()),
     Timer = timer:send_after(Latency * 1000, {terminateServer}),
-    loop(0, Latency, HBQ, CMEM, Timer, LogFile).
+    loop(1, Latency, HBQ, CMEM, Timer, LogFile).
 
 loop(NNrCounter, Latency, HBQ, CMEM, Timer, LogFile) ->
     % 3 - neue Nachricht empfangen
@@ -35,12 +35,7 @@ loop(NNrCounter, Latency, HBQ, CMEM, Timer, LogFile) ->
             ActualNNr =
                 receive
                     {reply, SendNNr} ->
-                        SendNNr;
-                    Any ->
-                        logging(
-                            LogFile, format("Unerwartete Antwort von der HBQ erhalten: ~p~n", [Any])
-                        ),
-                        -1
+                        SendNNr
                 after 7000 ->
                     logging(LogFile, "Keine Antwort von der HBQ erhalten. Server terminiert"),
                     exit(normal)
@@ -91,11 +86,7 @@ send_msg(PID, Message, LogFile) ->
     PID ! Message,
     receive
         {reply, ok} ->
-            ok;
-        Any ->
-            logging(
-                LogFile, format("Unerwartete Antwort von der HBQ erhalten: ~p~n", [Any])
-            )
+            ok
     after 7000 ->
         logging(LogFile, "Keine Antwort von der HBQ erhalten. Server terminiert"),
         exit(normal)

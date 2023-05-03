@@ -6,11 +6,17 @@
 -import(dlq, [expectedNr/1]).
 -import(dlq, [deliverMSG/4]).
 -import(dlq, [push2DLQ/3]).
+-import(util, [logging/2]).
+-import(vsutil, [now2string/1]).
 
 %% @doc startet den HBQ-Prozess und initialisiert die HBQ sowie die DLQ.
 initHBQ(DLQLimit, HBQName) ->
     % 1
-    LogFile = "hbq_dlq.log",
+    {ok, HostName} = inet:gethostname(),
+    LogFile = io_lib:format("hbq_dlq~s.log", [HostName]),
+    logging(
+        LogFile, io_lib:format("~s: HBQ wurde initialisiert~n", [now2string(erlang:timestamp())])
+    ),
     %       2
     DLQ = initDLQ(DLQLimit, LogFile),
     % 3
@@ -46,6 +52,7 @@ loop(DLQ, HBQ, LogFile) ->
     case Message of
         % 2
         {request, pushHBQ, Msg} ->
+            logging(LogFile, io_lib:format("HBQ: Nachricht ~p ~p bekommen.~n", [pushHBQ, Msg])),
             % 3
             {Return, NewHBQ} = pushHBQ(HBQ, DLQ, LogFile, Msg),
             % 4
@@ -63,14 +70,14 @@ loop(DLQ, HBQ, LogFile) ->
         % 9
         {request, listHBQ} ->
             % 10
-            vsutil:logging(LogFile, io_lib:format("HBQ = ~p~n", [HBQ])),
+            logging(LogFile, io_lib:format("HBQ = ~p~n", [HBQ])),
             % 11
             ServerID ! {reply, ok},
             loop(DLQ, HBQ, LogFile);
         % 12
         {request, listDLQ} ->
             % 13
-            vsutil:logging(LogFile, io_lib:format("DLQ = ~p~n", [DLQ])),
+            logging(LogFile, io_lib:format("DLQ = ~p~n", [DLQ])),
             % 14
             ServerID ! {reply, ok},
             loop(DLQ, HBQ, LogFile);
@@ -85,19 +92,22 @@ loop(DLQ, HBQ, LogFile) ->
 %%
 %% Außerdem werden hier ggf. Fehlernachrichten erstellt und in die DLQ eingefügt,
 %% sollten sich zu viele Nachrichten in der HBQ befinden.
-pushHBQ(HBQ = [[SmallestHBQ | _] | _], DLQ, LogFile, Message = [NNr | _]) ->
+pushHBQ(HBQ, DLQ, LogFile, Message = [NNr | _]) ->
     % 1
     ExpectedNNr = dlq:expectedNr(DLQ),
     %     2
     case NNr < ExpectedNNr of
         true ->
             % 3
-            vsutil:logging(LogFile, io_lib:format("HBQ: ~p wurde verworfen~n", [Message])),
+            logging(LogFile, io_lib:format("HBQ: ~p wurde verworfen~n", [Message])),
             % 4
             discarded;
         %                5
         false ->
-            NewHBQ = add2HBQ(Message, HBQ),
+            TShbqin = erlang:timestamp(),
+            [NNr, Msg, TSclientout] = Message,
+            NewMessage = [NNr, Msg ++ now2string(TShbqin), TSclientout, TShbqin],
+            NewHBQ = add2HBQ(NewMessage, HBQ),
             % 7
             CapacityDLQ = dlq:lengthDLQ(DLQ),
             %     6            8
@@ -106,22 +116,35 @@ pushHBQ(HBQ = [[SmallestHBQ | _] | _], DLQ, LogFile, Message = [NNr | _]) ->
                     % 9
                     {ok, NewHBQ};
                 false ->
-                    %      11              10
+                    %   10
+                    [[SmallestHBQ | _] | _] = HBQ,
+                    %      11
                     LastMissingNNr = SmallestHBQ - 1,
                     % 12, 13
                     Fehlernachricht =
-                        io_lib:format("HBQ: ***Fehlernachricht fuer Nachrichtennummern ~B bis ~B um <Zeitstempel>~n",
-                                      [SmallestHBQ, LastMissingNNr]),
+                        io_lib:format(
+                            "HBQ: ***Fehlernachricht fuer Nachrichtennummern ~B bis ~B um ~s~n",
+                            [SmallestHBQ, LastMissingNNr, now2string(TShbqin)]
+                        ),
                     % 14
-                    vsutil:logging(LogFile, io_lib:format("HBQ: ~p~n", [Fehlernachricht])),
+                    logging(LogFile, io_lib:format("HBQ: ~p~n", [Fehlernachricht])),
                     % 15
                     {Fehlernachricht, NewHBQ}
             end
     end.
 
-add2HBQ(_, _) ->
-    %% TODO
-    ok.
+add2HBQ(Elem, []) ->
+    [Elem];
+add2HBQ(
+    Elem = [ElemNNr | _ElemTail],
+    Messages = [Msg = [MsgNNr | _MsgTail] | MessagesTail]
+) ->
+    case ElemNNr < MsgNNr of
+        true ->
+            [Elem | Messages];
+        false ->
+            [Msg | add2HBQ(Elem, MessagesTail)]
+    end.
 
 %% @doc Verschiebt so viele Nachrichten wie möglich aus der HBQ in die DLQ.
 %% Dies führt zu einem Leeren der HBQ, solange es dort keine Lücken gibt.
@@ -145,11 +168,11 @@ pushDLQ(ok, _HBQ = [FirstMsg = [FirstNNr | _] | Tail], DLQ, LogFile) ->
             % 11
             DLQ
     end;
-%%           1           
+%%           1
 pushDLQ(Fehlernachricht, HBQ, DLQ, LogFile) ->
     %% TODO: wie kann man feststellen, dass es sich um die Fehlernachricht handelt?
     %% alles andere als ok?
-    vsutil:logging(LogFile, io_lib:format("HBQ: ~p wurde zur DLQ gepusht~n", [Fehlernachricht])),
+    logging(LogFile, io_lib:format("HBQ: ~p wurde zur DLQ gepusht~n", [Fehlernachricht])),
     %                   2
     NewDLQ = push2DLQ(Fehlernachricht, DLQ, LogFile),
     %            4

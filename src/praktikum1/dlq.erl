@@ -14,7 +14,12 @@
 %% @doc initialisiert die DLQ.
 initDLQ(DLQLimit, LogFile) ->
     % 2
-    logging(LogFile, io_lib:format("DLQ mit DLQLimit ~B erstellt.~n", [DLQLimit])),
+    logging(
+        LogFile,
+        io_lib:format("~s: DLQ mit DLQLimit ~B erstellt.~n", [
+            DLQLimit, now2string(erlang:timestamp())
+        ])
+    ),
     % 1 und 3
     {DLQLimit, []}.
 
@@ -24,10 +29,9 @@ delDLQ(_Queue) ->
 %% @doc Ermittelt die als nächstes erwartete Nachrichennummer der DLQ.
 expectedNr({_Capacity, Queue}) ->
     % 1
-    %% FIXME: was ist wenn die Queue noch leer ist, bzw kann dieser Fall eintreten?
     case Queue of
         [] ->
-            0 + 1;
+            1;
         % 2
         [NNr | _Tail] ->
             NNr + 1
@@ -60,13 +64,14 @@ push2DLQ([NNr, TextMsg, TSclientout, TShbqin], Queue = {Capacity, Messages}, Log
 %% @doc Fuegt ein Element der DLQ hinzu und gewaehrleistet,
 %% dass es immer in der richtigen Rheinfolge ist.
 add2dlq(Elem, {Capacity, Messages}) ->
-    %% TODO sicherstellen, dass queue geordnet ist
     {Capacity, add2dlq_intern(Elem, Messages)}.
 
 add2dlq_intern(Elem, []) ->
     Elem;
-add2dlq_intern(Elem = [ElemNNr | _ElemTail],
-               Messages = [Msg = [MsgNNr | _MsgTail] | MessagesTail]) ->
+add2dlq_intern(
+    Elem = [ElemNNr | _ElemTail],
+    Messages = [Msg = [MsgNNr | _MsgTail] | MessagesTail]
+) ->
     case ElemNNr < MsgNNr of
         true ->
             [Elem | Messages];
@@ -96,28 +101,37 @@ deliverMSG(MSGNr, ClientPID, Queue, LogFile) ->
             deliverMSG(MSGNr + 1, ClientPID, Queue, LogFile);
         nok ->
             NewMessage = [-1, nokA, 0, 0, 0, 0],
-            logging(LogFile,
-                    io_lib:format("DLQ: Nachricht=~B konnte nicht gefunden werden. ~p wurde an "
-                                  "~B gesendet.",
-                                  [MSGNr, NewMessage, ClientPID])),
+            logging(
+                LogFile,
+                io_lib:format(
+                    "DLQ: Nachricht=~B konnte nicht gefunden werden. ~p wurde an "
+                    "~B gesendet.",
+                    [MSGNr, NewMessage, ClientPID]
+                )
+            ),
             ClientPID ! {reply, NewMessage, true},
             -1;
         Message ->
             Terminated =
-                if MSGNr == ExpectedNNr - 1 ->
-                       true;
-                   true ->
-                       false
+                if
+                    MSGNr == ExpectedNNr - 1 ->
+                        true;
+                    true ->
+                        false
                 end,
             TSdlqout = erlang:timestamp(),
             NewMessage = Message ++ TSdlqout,
             ClientPID ! {reply, NewMessage, Terminated},
-            logging(LogFile, io_lib:format("DLQ: ~p wurde an ~B gesendet.~n", [NewMessage, ClientPID])),
+            logging(
+                LogFile, io_lib:format("DLQ: ~p wurde an ~B gesendet.~n", [NewMessage, ClientPID])
+            ),
             MSGNr
     end.
 
 %% @doc Gibt eine Liste aller Nachrichtennummern in der DLQ zurück.
-listDLQ({_Capacity, List}) -> % 1, 2
+
+% 1, 2
+listDLQ({_Capacity, List}) ->
     listDLQintern(List).
 
 %% 3
@@ -126,7 +140,9 @@ listDLQintern([]) ->
 %%               5               4
 listDLQintern([[CurrentNNr | _T] | Tail]) ->
     %    6                7
-    [CurrentNNr | listDLQintern(Tail)]. % 8
+
+    % 8
+    [CurrentNNr | listDLQintern(Tail)].
 
 %% @doc Gibt die Kapazitaet der DLQ zurueck.
 lengthDLQ({Capacity, _Queue}) ->
