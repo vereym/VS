@@ -6,7 +6,7 @@
 -export([push2DLQ/3]).
 -export([listDLQ/1]).
 -export([deliverMSG/4]).
--export([reverse/1]).
+-export([lengthDLQ/1]).
 
 -import(util, [logging/2]).
 -import(vsutil, [now2string/1]).

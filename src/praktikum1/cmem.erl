@@ -2,8 +2,8 @@
 
 -export([initCMEM/2, delCMEM/1, updateClient/4, getClientNNr/2, listCMEM/1, lengthCMEM/1]).
 
--import(util, [logging/2, writelist/2, randomliste/3]).
--import(vsutil, [get_config_value/2, now2string/1, now2stringD/1, meinSleep/1, validTS/1, diffTS/2]).
+-import(util, [logging/2]).
+-import(vsutil, [now2string/1, now2stringD/1, diffTS/2]).
 -import(io_lib, [format/2]).
 
 initCMEM(RemTime, LogFile) ->
