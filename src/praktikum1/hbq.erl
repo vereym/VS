@@ -5,6 +5,7 @@
 -import(dlq, [initDLQ/2]).
 -import(dlq, [expectedNr/1]).
 -import(dlq, [deliverMSG/4]).
+-import(dlq, [push2DLQ/3]).
 
 %% @doc startet den HBQ-Prozess und initialisiert die HBQ sowie die DLQ.
 initHBQ(DLQLimit, HBQName) ->
@@ -126,22 +127,30 @@ add2HBQ(_, _) ->
 %% Dies führt zu einem Leeren der HBQ, solange es dort keine Lücken gibt.
 %% @end
 %%       3   4
-pushDLQ(ok, [], DLQ, Datei) ->
+pushDLQ(ok, [], DLQ, _LogFile) ->
     % 11
     DLQ;
-pushDLQ(ok, _HBQ = [FirstMsg = [FirstNNr | _] | Tail], DLQ, Datei) ->
+%%             6                     7
+pushDLQ(ok, _HBQ = [FirstMsg = [FirstNNr | _] | Tail], DLQ, LogFile) ->
+    % 5
     ExpectedNNr = expectedNr(DLQ),
+    %              8
     case ExpectedNNr == FirstNNr of
         true ->
-            NewDLQ = push2DLQ(FirstMsg, DLQ, Datei),
-            pushDLQ(ok, Tail, NewDLQ, Datei);
+            %   9
+            NewDLQ = push2DLQ(FirstMsg, DLQ, LogFile),
+            %            10
+            pushDLQ(ok, Tail, NewDLQ, LogFile);
         false ->
-            todo
+            % 11
+            DLQ
     end;
-pushDLQ(fehlernachricht, HBQ, DLQ, Datei) ->
+%%           1           
+pushDLQ(Fehlernachricht, HBQ, DLQ, LogFile) ->
     %% TODO: wie kann man feststellen, dass es sich um die Fehlernachricht handelt?
     %% alles andere als ok?
-    todo.
-
-push2DLQ(_, _, _) ->
-    ok.
+    vsutil:logging(LogFile, io_lib:format("HBQ: ~p wurde zur DLQ gepusht", [Fehlernachricht])),
+    %                   2
+    NewDLQ = push2DLQ(Fehlernachricht, DLQ, LogFile),
+    %            4
+    pushDLQ(ok, HBQ, NewDLQ, LogFile).
