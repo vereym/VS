@@ -14,12 +14,9 @@
 %% @doc initialisiert die DLQ.
 initDLQ(DLQLimit, LogFile) ->
     % 2
-    logging(
-        LogFile,
-        io_lib:format("~s: DLQ mit DLQLimit ~B erstellt.~n", [
-            DLQLimit, now2string(erlang:timestamp())
-        ])
-    ),
+    logging(LogFile,
+            io_lib:format("~s: DLQ mit DLQLimit ~B erstellt.~n",
+                          [now2string(erlang:timestamp()), DLQLimit])),
     % 1 und 3
     {DLQLimit, []}.
 
@@ -27,21 +24,27 @@ delDLQ(_Queue) ->
     ok.
 
 %% @doc Ermittelt die als nächstes erwartete Nachrichennummer der DLQ.
+expectedNr({_Capacity, []}) ->
+    1;
 expectedNr({_Capacity, Queue}) ->
     % 1
-    case Queue of
-        [] ->
-            1;
-        % 2
-        [NNr | _Tail] ->
-            NNr + 1
-    end.
+    [[NNr | _] = _Message | _] = reverse(Queue),
+    io:format("NNr = ~p~n", [NNr]),
+    NNr + 1.
 
 %% @doc Verschiebt eine Nachricht in die DLQ und ergänzt diese um einen Zeitstempel.
-push2DLQ([NNr, TextMsg, TSclientout, TShbqin], Queue = {Capacity, Messages}, LogFile) ->
+push2DLQ(Message, Queue = {Capacity, Messages}, LogFile) ->
     % 1, 2
     TSdlqin = erlang:timestamp(),
-    NewMsg = [NNr, TextMsg ++ now2string(TSdlqin), TSclientout, TShbqin, TSdlqin],
+    NewMsg =
+        case length(Message) > 2 of
+            true ->
+                [NNr, Msg, TSclientout, TShbqin] = Message,
+                [NNr, Msg ++ now2string(TSdlqin), TSclientout, TShbqin, TSdlqin];
+            false ->
+                [NNr, Msg] = Message,
+                [NNr, Msg ++ now2string(TSdlqin)]
+        end,
 
     % 7
     logging(LogFile, io_lib:format("DLQ: ~p wurde in die DLQ eingefügt.~n", [NewMsg])),
@@ -67,11 +70,9 @@ add2dlq(Elem, {Capacity, Messages}) ->
     {Capacity, add2dlq_intern(Elem, Messages)}.
 
 add2dlq_intern(Elem, []) ->
-    Elem;
-add2dlq_intern(
-    Elem = [ElemNNr | _ElemTail],
-    Messages = [Msg = [MsgNNr | _MsgTail] | MessagesTail]
-) ->
+    [Elem];
+add2dlq_intern(Elem = [ElemNNr | _ElemTail],
+               Messages = [Msg = [MsgNNr | _MsgTail] | MessagesTail]) ->
     case ElemNNr < MsgNNr of
         true ->
             [Elem | Messages];
@@ -140,7 +141,6 @@ listDLQintern([]) ->
 %%               5               4
 listDLQintern([[CurrentNNr | _T] | Tail]) ->
     %    6                7
-
     % 8
     [CurrentNNr | listDLQintern(Tail)].
 
