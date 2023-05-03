@@ -14,14 +14,20 @@ start() ->
     {ok, ServerConfig} = file:consult("server.cfg"),
     {ok, DLQLimit} = get_config_value(dlqlimit, ServerConfig),
     {ok, HBQName} = get_config_value(hbqname, ServerConfig),
+    {ok, HBQNode} = get_config_value(hbqnode, ServerConfig),
     {ok, ServerName} = get_config_value(servername, ServerConfig),
     {ok, RemTime} = get_config_value(clientlifetime, ServerConfig),
     {ok, Latency} = get_config_value(latency, ServerConfig),
     % 2
-    HBQ = initHBQ(DLQLimit, HBQName),
+    %% HBQ = initHBQ(DLQLimit, HBQName),
     {ok, HostName} = inet:gethostname(),
     % 3
     LogFile = format("Server@~s.log", [HostName]),
+
+    % HBQ auf eigener Node starten
+    startHBQNode(HBQName, HBQNode, DLQLimit, LogFile),
+    HBQ = {HBQName, HBQNode},
+
     % 4
     CMEM = initCMEM(RemTime, LogFile),
     % 5
@@ -31,7 +37,19 @@ start() ->
     % 7
     loop(1, Latency, HBQ, CMEM, Timer, LogFile).
 
-% Empfängt und verarbeitet kontinuierlich Nachrichten im Server-Prozess, bis dieser automatisch nach einer Zeit von Latency beendet wird.
+startHBQNode(HBQName, HBQNode, DLQLimit, LogFile) ->
+    case net_adm:ping(HBQNode) of
+        pang ->
+            logging(
+                LogFile,
+                format("HBQNode ~s konnte nicht gefunden werden.~n", [HBQNode])
+            );
+        pong ->
+            spawn(HBQNode,fun() -> hbq:initHBQ(DLQLimit, HBQName) end)
+    end.
+    
+
+% @doc Empfängt und verarbeitet kontinuierlich Nachrichten im Server-Prozess, bis dieser automatisch nach einer Zeit von Latency beendet wird.
 % HBQ ist hier die PID des HBQ-Prozesses. Es gibt die folgenden Schnittstellen:
 % - getmessages: liefert eine weitere Nachricht an den Client aus und updated anschließend das CMEM
 %

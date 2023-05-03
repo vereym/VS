@@ -51,7 +51,9 @@ loop(DLQ, HBQ, LogFile) ->
     case Message of
         % 2
         {request, pushHBQ, Msg} ->
-            logging(LogFile, io_lib:format("HBQ: Nachricht ~p ~p bekommen.~n", [pushHBQ, Msg])),
+            logging(LogFile,
+                    io_lib:format("HBQ ~s: Nachricht ~p ~p bekommen.~n",
+                                  [now2string(erlang:timestamp()), pushHBQ, Msg])),
             % 3
             {Return, NewHBQ} = pushHBQ(HBQ, DLQ, LogFile, Msg),
             % 4
@@ -61,7 +63,9 @@ loop(DLQ, HBQ, LogFile) ->
             loop(NewDLQ, UpdatedHBQ, LogFile);
         % 6
         {request, deliverMSG, NNr, ToClient} ->
-            logging(LogFile, io_lib:format("HBQ: Nachricht ~p ~p bekommen.~n", [deliverMSG, NNr])),
+            logging(LogFile,
+                    io_lib:format("HBQ ~s: Nachricht ~p ~p bekommen.~n",
+                                  [now2string(erlang:timestamp()), deliverMSG, NNr])),
             % 7
             SendNNr = deliverMSG(NNr, ToClient, DLQ, LogFile),
             % 8
@@ -69,17 +73,23 @@ loop(DLQ, HBQ, LogFile) ->
             loop(DLQ, HBQ, LogFile);
         % 9
         {request, listHBQ} ->
-            logging(LogFile, io_lib:format("HBQ: Nachricht ~p bekommen.~n", [listHBQ])),
+            logging(LogFile,
+                    io_lib:format("HBQ ~s: Nachricht ~p bekommen.~n",
+                                  [now2string(erlang:timestamp()), listHBQ])),
             % 10
-            logging(LogFile, io_lib:format("HBQ = ~p~n", [HBQ])),
+            logging(LogFile,
+                    io_lib:format("um ~s war HBQ = ~p~n", [now2string(erlang:timestamp()), HBQ])),
             % 11
             ServerID ! {reply, ok},
             loop(DLQ, HBQ, LogFile);
         % 12
         {request, listDLQ} ->
-            logging(LogFile, io_lib:format("HBQ: Nachricht ~p bekommen.~n", [listDLQ])),
+            logging(LogFile,
+                    io_lib:format("HBQ ~s: Nachricht ~p bekommen.~n",
+                                  [now2string(erlang:timestamp()), listDLQ])),
             % 13
-            logging(LogFile, io_lib:format("DLQ = ~p~n", [DLQ])),
+            logging(LogFile,
+                    io_lib:format("um ~s war DLQ = ~p~n", [now2string(erlang:timestamp()), DLQ])),
             % 14
             ServerID ! {reply, ok},
             loop(DLQ, HBQ, LogFile);
@@ -102,7 +112,9 @@ pushHBQ(HBQ, DLQ, LogFile, Message = [NNr | _]) ->
     case NNr < ExpectedNNr of
         true ->
             % 3
-            logging(LogFile, io_lib:format("HBQ: ~p wurde verworfen~n", [Message])),
+            logging(LogFile,
+                    io_lib:format("HBQ ~s: ~p wurde verworfen~n",
+                                  [now2string(erlang:timestamp()), Message])),
             % 4
             discarded;
         %                5
@@ -127,11 +139,16 @@ pushHBQ(HBQ, DLQ, LogFile, Message = [NNr | _]) ->
                     Fehlernachricht =
                         % 14
                         [LastMissingNNr,
-                         io_lib:format("HBQ: ***Fehlernachricht fuer Nachrichtennummern ~B bis ~B um "
-                                       "~s~n",
-                                       [SmallestHBQ, LastMissingNNr, now2string(TShbqin)])],
+                         io_lib:format("HBQ ~s: ***Fehlernachricht fuer Nachrichtennummern ~B bis ~B "
+                                       "um ~s~n",
+                                       [now2string(erlang:timestamp()),
+                                        SmallestHBQ,
+                                        LastMissingNNr,
+                                        now2string(TShbqin)])],
                     % 14
-                    logging(LogFile, io_lib:format("HBQ: ~p~n", [Fehlernachricht])),
+                    logging(LogFile,
+                            io_lib:format("HBQ ~s: ~p~n",
+                                          [now2string(erlang:timestamp()), Fehlernachricht])),
                     % 15
                     {Fehlernachricht, NewHBQ}
             end
@@ -174,7 +191,9 @@ pushDLQ(discarded, HBQ, DLQ, _LogFile) ->
     {DLQ, HBQ};
 %%           1
 pushDLQ(Fehlernachricht, HBQ, DLQ, LogFile) ->
-    logging(LogFile, io_lib:format("HBQ: ~p wurde zur DLQ gepusht~n", [Fehlernachricht])),
+    logging(LogFile,
+            io_lib:format("HBQ ~s: ~p wurde zur DLQ gepusht~n",
+                          [now2string(erlang:timestamp()), Fehlernachricht])),
     %                   2
     NewDLQ = push2DLQ(Fehlernachricht, DLQ, LogFile),
     %            4
