@@ -2,89 +2,101 @@
 
 -export([start/0]).
 
--import(vsutil, [now2string/1]).
+-import(vsutil, [get_config_value/2, now2string/1, reset_timer/3]).
 -import(hbq, [initHBQ/2]).
--import(cmem, [initCMEM/2]).
+-import(cmem, [initCMEM/2, getClientNNr/2, updateClient/4, listCMEM/1]).
+-import(util, [logging/2]).
+-import(io_lib, [format/2]).
 
 start() ->
     % config auslesen
     {ok, ServerConfig} = file:consult("server.cfg"),
-    {ok, DLQLimit} = vsutil:get_config_value(dlqlimit, ServerConfig),
-    {ok, HBQName} = vsutil:get_config_value(hbqname, ServerConfig),
-    {ok, ServerName} = vsutil:get_config_value(servername, ServerConfig),
-    {ok, RemTime} = vsutil:get_config_value(clientlifetime, ServerConfig),
-    {ok, Latency} = vsutil:get_config_value(latency, ServerConfig),
-    % lists:foreach(fun(S) -> io:write(S)end, [DLQLimit, HBQName, ServerName, RemTime, Latency]),
-    HBQ = initHBQ(DLQLimit, HBQName),
-    LogFile = "server_log.log",
-    CMEM = initCMEM(RemTime, LogFile),
-    ServerID = spawn(fun() -> loop(0, Latency, HBQ, CMEM, LogFile) end),
-    register(ServerName, ServerID),
-    ServerID.
+    {ok, DLQLimit} = get_config_value(dlqlimit, ServerConfig),
+    {ok, HBQName} = get_config_value(hbqname, ServerConfig),
+    {ok, ServerName} = get_config_value(servername, ServerConfig),
+    {ok, RemTime} = get_config_value(clientlifetime, ServerConfig),
+    {ok, Latency} = get_config_value(latency, ServerConfig),
 
-loop(NNrCounter, Latency, HBQ, CMEM, LogFile) ->
+    HBQ = initHBQ(DLQLimit, HBQName),
+    {ok, HostName} = inet:gethostname(),
+    LogFile = format("Server@~s.log", [HostName]),
+    CMEM = initCMEM(RemTime, LogFile),
+    register(ServerName, self()),
+    Timer = timer:send_after(Latency * 1000, {terminateServer}),
+    loop(0, Latency, HBQ, CMEM, Timer, LogFile).
+
+loop(NNrCounter, Latency, HBQ, CMEM, Timer, LogFile) ->
     % 3 - neue Nachricht empfangen
     receive
         {ClientID, getmessages} ->
-            % TODO
+            NewTimer = reset_timer(Timer, Latency, {terminateServer}),
             ClientNNr = getClientNNr(CMEM, ClientID),
             HBQ ! {self(), {request, deliverMSG, ClientNNr, ClientID}},
-            receive
-                ActualNNr ->
-                    ActualNNr
+            ActualNNr =
+                receive
+                    {reply, SendNNr} ->
+                        SendNNr;
+                    Any ->
+                        logging(
+                            LogFile, format("Unerwartete Antwort von der HBQ erhalten: ~p~n", [Any])
+                        ),
+                        -1
+                after 7000 ->
+                    logging(LogFile, "Keine Antwort von der HBQ erhalten. Server terminiert"),
+                    exit(normal)
+                end,
+            if
+                ActualNNr == -1 -> NewCMEM = CMEM;
+                true -> NewCMEM = updateClient(CMEM, ClientID, ActualNNr + 1, LogFile)
             end,
-            io:write(ActualNNr),
-            io:write([getmessages, "\n"]),
-            % loop(0, Latency, HBQ, CMEM, LogFile),
-            ok;
-
+            loop(NNrCounter, Latency, HBQ, NewCMEM, NewTimer, LogFile);
         {dropmessage, Message = [_NNR, _Msg, _TSclientout]} ->
-            io:write(Message),
-            ok;
-
+            NewTimer = reset_timer(Timer, Latency, {terminateServer}),
+            send_msg(HBQ, {self(), {request, pushHBQ, Message}}, LogFile),
+            loop(NNrCounter, Latency, HBQ, CMEM, NewTimer, LogFile);
         {ClientID, getmsgid} ->
-            io:write(getmsgid),
-            ClientID ! {};
-
+            NewTimer = reset_timer(Timer, Latency, {terminateServer}),
+            ClientID ! {nid, NNrCounter},
+            loop(NNrCounter + 1, Latency, HBQ, CMEM, NewTimer, LogFile);
         % 16
         {_ClientID, listDLQ} ->
-            io:write(listDLQ),
-            Reply = send_msg(HBQ, {self(), {request, listHBQ}}),
-            if Reply == {reply, ok} -> ok;
-                true -> log(LogFile, Reply)
-            end;
-
+            NewTimer = reset_timer(Timer, Latency, {terminateServer}),
+            send_msg(HBQ, {self(), {request, listDLQ}}, LogFile),
+            loop(NNrCounter, Latency, HBQ, CMEM, NewTimer, LogFile);
         % 19
         {_ClientID, listHBQ} ->
-            io:write(listHBQ),
-            Reply = send_msg(HBQ, {self(), {request, listHBQ}}),
-            if Reply == {reply, ok} -> ok;
-                true -> log(LogFile, Reply)
-            end;
-
+            NewTimer = reset_timer(Timer, Latency, {terminateServer}),
+            send_msg(HBQ, {self(), {request, listHBQ}}, LogFile),
+            loop(NNrCounter, Latency, HBQ, CMEM, NewTimer, LogFile);
         % 22
         {_ClientID, listCMEM} ->
-            io:write(listCMEM),
-            log(LogFile, CMEM);
-
+            NewTimer = reset_timer(Timer, Latency, {terminateServer}),
+            logging(LogFile, format("~p~n", [listCMEM(CMEM)])),
+            loop(NNrCounter, Latency, HBQ, CMEM, NewTimer, LogFile);
+        {terminateServer} ->
+            logging(LogFile, "Server nach Ablauf seiner Latency terminiert.~n"),
+            exit(normal);
         Any ->
-            log(LogFile, "Server hat " ++ [Any] ++ "empfangen, konnte damit jedoch nichts anfangen."),
+            logging(
+                LogFile,
+                format(
+                    "Server hat folgende Nachricht empfangen, konnte damit jedoch nichts anfangen: ~p~n",
+                    [Any]
+                )
+            ),
             ok
-    end,
-    loop(NNrCounter, Latency, HBQ, CMEM, LogFile).
+    end.
 
-%% @doc log Data to LogFile
-log(LogFile, Data) ->
-    file:write_file(LogFile, Data, [append]),
-    io:format(">: ~p~n", Data),
-    ok.
-
-getClientNNr(_, _) ->
-    ok.
-
-send_msg(PID, Message) ->
+send_msg(PID, Message, LogFile) ->
     PID ! Message,
     receive
+        {reply, ok} ->
+            ok;
         Any ->
-            Any
+            logging(
+                LogFile, format("Unerwartete Antwort von der HBQ erhalten: ~p~n", [Any])
+            )
+    after 7000 ->
+        logging(LogFile, "Keine Antwort von der HBQ erhalten. Server terminiert"),
+        exit(normal)
     end.
