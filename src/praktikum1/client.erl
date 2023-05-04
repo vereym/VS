@@ -69,7 +69,7 @@ startLoop(LifeTime, Delay, Server, ClientName, LogFile) ->
 
 % Wechselt kontinuierlich zwischen Redakteur und Leser, bis der Client beendet wird.
 % Merkt sich die bereits erhaltenen Nachrichtennummern auch zwischen den Leser-Wechseln im RMEM.
-loop(RMEM, LifeTime, Delay, Server, ClientName, LogFile) ->
+loop(RMEM, TotalLifeTime, Delay, Server, ClientName, LogFile) ->
     % 3
     redakteur(Delay, Server, ClientName, LogFile),
     % 4
@@ -77,7 +77,7 @@ loop(RMEM, LifeTime, Delay, Server, ClientName, LogFile) ->
     % 5
     NewDelay = randomizeDelay(Delay),
     % 2
-    loop(NewRMEM, LifeTime, NewDelay, Server, ClientName, LogFile).
+    loop(NewRMEM, TotalLifeTime, NewDelay, Server, ClientName, LogFile).
 
 % Sendet in regelmäßigen Abständen 5 Nachrichten an einen Server, fragt anschließend eine weitere
 % Nachrichtennummer an und bricht dann ab. Die dadurch angefragte aber "vergessene" Nachricht wird
@@ -121,9 +121,12 @@ getNNr(Server, ClientName, LogFile) ->
     after 7000 ->
         logging(
             LogFile,
-            format("~s aufgrund eines Fehlers terminiert. Keine Antwort vom Server erhalten (Redakteur).~n", [
-                ClientName
-            ])
+            format(
+                "~s aufgrund eines Fehlers terminiert. Keine Antwort vom Server erhalten (Redakteur).~n",
+                [
+                    ClientName
+                ]
+            )
         ),
         exit(normal)
     end.
@@ -137,18 +140,18 @@ randomizeDelay(Delay) ->
     if
         (0.5 * Delay) < 2 ->
             % 2
-            Delay * 1.5;
+            erlang:round(Delay * 1.5);
         true ->
             % 3
             if
-                Random == 1 -> Delay * 1.5;
-                true -> Delay * 0.5
+                Random == 1 -> erlang:round(Delay * 1.5);
+                true -> erlang:round(Delay * 0.5)
             end
     end.
 
 % Liest Nachrichten vom Server und loggt diese in einer Datei. Außerdem werden die erhaltenen Nachrichten um Informationen zu folgenden Ereignissen ergänzt:
 % - die Nachricht stammt vom eigenen Redakteur ("*******")
-% - die Nachricht kommt "aus der Zukunft" 
+% - die Nachricht kommt "aus der Zukunft"
 % - die Nachricht wurde zum wiederholten Mal erhalten
 leser(RMEM, Server, ClientName, LogFile) ->
     % 1
@@ -163,33 +166,43 @@ leserLoop(RMEM, Server, ClientName, LogFile) ->
     [NNr, Msg, TSclientout, TShbqin, _TSdlqin, TSdlqout] = Message,
     % 8
     TSclientin = erlang:timestamp(),
-    % 14
-    {Repetition, Amount, NewRMEM} = updateReadMsgMEM(RMEM, NNr),
-    % Andere Schritte überspringen, wenn Nachricht zum wiederholten Mal empfangen wird.
-    MsgString =
-        % 15
-        if
-            Repetition ->
-                % 16
-                format(">>>Wiederholung<<<: Nummer ~B zum ~B-ten mal erhalten.", [NNr, Amount]);
-            true ->
-                % 5 & 6
-                IsEigenerRedakteur = isEigenerRedakteur(Msg, ClientName),
-                NewMsg = %Msg,
-                    if
-                        % 7
-                        IsEigenerRedakteur -> Msg ++ "*******";
-                        true -> Msg
-                    end,
-                % 10 - 13
-                checkFuture(NewMsg, TSclientout, TShbqin, TSdlqout, TSclientin, LogFile, NNr)
-        end,
+    if
+        Msg == nokA ->
+            NewRMEM = RMEM,
+            MsgString = "nokA";
+        true ->
+            % 14
+            {Repetition, Amount, NewRMEM} = updateReadMsgMEM(RMEM, NNr),
+            % Andere Schritte überspringen, wenn Nachricht zum wiederholten Mal empfangen wird.
+            MsgString =
+                % 15
+                if
+                    Repetition ->
+                        % 16
+                        format(">>>Wiederholung<<<: Nummer ~B zum ~B-ten mal erhalten.", [
+                            NNr, Amount
+                        ]);
+                    true ->
+                        % 5 & 6
+                        IsEigenerRedakteur = isEigenerRedakteur(Msg, ClientName),
+                        NewMsg =
+                            if
+                                % 7
+                                IsEigenerRedakteur -> Msg ++ "*******";
+                                true -> Msg
+                            end,
+                        % 10 - 13
+                        checkFuture(
+                            NewMsg, TSclientout, TShbqin, TSdlqout, TSclientin, LogFile, NNr
+                        )
+                end
+    end,
     % 17                                                 9 & 16
     logging(LogFile, format("~s ; C In: ~s~n", [MsgString, now2string(TSclientin)])),
     % 1
     if
         Terminated ->
-            logging(LogFile, "Leser terminiert~n");
+            logging(LogFile, format("Leser terminiert~n", []));
         true ->
             leserLoop(NewRMEM, Server, ClientName, LogFile)
     end,
@@ -211,9 +224,12 @@ getNewMessage(Server, ClientName, LogFile) ->
     after 7000 ->
         logging(
             LogFile,
-            format("~s aufgrund eines Fehlers terminiert. Keine Antwort vom Server erhalten. (Leser)~n", [
-                ClientName
-            ])
+            format(
+                "~s aufgrund eines Fehlers terminiert. Keine Antwort vom Server erhalten. (Leser)~n",
+                [
+                    ClientName
+                ]
+            )
         ),
         exit(normal)
     end.
