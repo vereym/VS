@@ -21,7 +21,7 @@ initHBQ(DLQLimit, HBQName) ->
     % 3
     HBQ = [],
     % 5     4             7
-    PID = spawn(fun() -> loop(DLQ, HBQ, LogFile) end),
+    PID = spawn(fun() -> loop(DLQ, DLQLimit, HBQ, LogFile) end),
     % 6
     register(HBQName, PID),
     % 8
@@ -41,7 +41,7 @@ initHBQ(DLQLimit, HBQName) ->
 %% - listHBQ/listDLQ: bewirkt ein Logging der HBQ/DLQ in einer Datei
 %%
 %% - delHBQ: beendet den HBQ-Prozess
-loop(DLQ, HBQ, LogFile) ->
+loop(DLQ, DLQCapacity, HBQ, LogFile) ->
     % 1
     {ServerID, Nachricht} =
         receive
@@ -56,12 +56,12 @@ loop(DLQ, HBQ, LogFile) ->
                     io_lib:format("HBQ ~s: request ~p mit Message = ~p bekommen.~n",
                                   [now2string(erlang:timestamp()), pushHBQ, Message])),
             % 3
-            {Return, NewHBQ} = pushHBQ(HBQ, DLQ, LogFile, Message),
+            {Return, NewHBQ} = pushHBQ(HBQ, DLQ, DLQCapacity, LogFile, Message),
             % 4
             {NewDLQ, UpdatedHBQ} = pushDLQ(Return, NewHBQ, DLQ, LogFile),
             % 5
             ServerID ! {reply, ok},
-            loop(NewDLQ, UpdatedHBQ, LogFile);
+            loop(NewDLQ, DLQCapacity, UpdatedHBQ, LogFile);
         % 6
         {request, deliverMSG, NNr, ToClient} ->
             logging(LogFile,
@@ -71,7 +71,7 @@ loop(DLQ, HBQ, LogFile) ->
             SendNNr = deliverMSG(NNr, ToClient, DLQ, LogFile),
             % 8
             ServerID ! {reply, SendNNr},
-            loop(DLQ, HBQ, LogFile);
+            loop(DLQ, DLQCapacity, HBQ, LogFile);
         % 9
         {request, listHBQ} ->
             logging(LogFile,
@@ -82,7 +82,7 @@ loop(DLQ, HBQ, LogFile) ->
                     io_lib:format("um ~s war HBQ = ~p~n", [now2string(erlang:timestamp()), HBQ])),
             % 11
             ServerID ! {reply, ok},
-            loop(DLQ, HBQ, LogFile);
+            loop(DLQ, DLQCapacity, HBQ, LogFile);
         % 12
         {request, listDLQ} ->
             logging(LogFile,
@@ -93,7 +93,7 @@ loop(DLQ, HBQ, LogFile) ->
                     io_lib:format("um ~s war DLQ = ~p~n", [now2string(erlang:timestamp()), DLQ])),
             % 14
             ServerID ! {reply, ok},
-            loop(DLQ, HBQ, LogFile);
+            loop(DLQ, DLQCapacity, HBQ, LogFile);
         % 15
         {request, delHBQ} ->
             logging(LogFile, io_lib:format("HBQ: Nachricht ~p bekommen.~n", [delHBQ])),
@@ -106,7 +106,7 @@ loop(DLQ, HBQ, LogFile) ->
 %%
 %% Außerdem werden hier ggf. Fehlernachrichten erstellt und in die DLQ eingefügt,
 %% sollten sich zu viele Nachrichten in der HBQ befinden.
-pushHBQ(HBQ, DLQ, LogFile, Message = [NNr | _]) ->
+pushHBQ(HBQ, DLQ, DLQCapacity, LogFile, Message = [NNr | _]) ->
     % 1
     ExpectedNNr = dlq:expectedNr(DLQ),
     %     2
@@ -126,16 +126,14 @@ pushHBQ(HBQ, DLQ, LogFile, Message = [NNr | _]) ->
 
             %           6
             NewHBQ = add2HBQ(NewMessage, HBQ),
-            % 8
-            CapacityDLQ = dlq:lengthDLQ(DLQ),
-            %       7           9
-            case length(NewHBQ) < 2 / 3 * CapacityDLQ of
+            %       7           9              8
+            case length(NewHBQ) < 2 / 3 * DLQCapacity of
                 true ->
                     %   10
                     {ok, NewHBQ};
                 false ->
                     %   11
-                    [[SmallestHBQ | _] | _] = HBQ,
+                    [[SmallestHBQ | _] | _] = NewHBQ,
                     %      12
                     LastMissingNNr = SmallestHBQ - 1,
                     % 13
