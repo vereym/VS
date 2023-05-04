@@ -118,25 +118,27 @@ pushHBQ(HBQ, DLQ, LogFile, Message = [NNr | _]) ->
                                   [now2string(erlang:timestamp()), Message])),
             % 4
             {discarded, HBQ};
-        %                5
         false ->
             TShbqin = erlang:timestamp(),
             [NNr, Msg, TSclientout] = Message,
+            %                            5
             NewMessage = [NNr, Msg ++ now2string(TShbqin), TSclientout, TShbqin],
+
+            %           6
             NewHBQ = add2HBQ(NewMessage, HBQ),
-            % 7
+            % 8
             CapacityDLQ = dlq:lengthDLQ(DLQ),
-            %     6            8
+            %       7           9
             case length(NewHBQ) < 2 / 3 * CapacityDLQ of
                 true ->
-                    % 9
+                    %   10
                     {ok, NewHBQ};
                 false ->
-                    %   10
+                    %   11
                     [[SmallestHBQ | _] | _] = HBQ,
-                    %      11
+                    %      12
                     LastMissingNNr = SmallestHBQ - 1,
-                    % 12, 13
+                    % 13
                     Fehlernachricht =
                         % 14
                         [LastMissingNNr,
@@ -146,11 +148,11 @@ pushHBQ(HBQ, DLQ, LogFile, Message = [NNr | _]) ->
                                         SmallestHBQ,
                                         LastMissingNNr,
                                         now2string(TShbqin)])],
-                    % 14
+                    % 15
                     logging(LogFile,
                             io_lib:format("HBQ ~s: ~p~n",
                                           [now2string(erlang:timestamp()), Fehlernachricht])),
-                    % 15
+                    % 16
                     {Fehlernachricht, NewHBQ}
             end
     end.
