@@ -13,17 +13,18 @@
 initHBQ(DLQLimit, HBQName) ->
     % 1
     {ok, HostName} = inet:gethostname(),
-    LogFile = io_lib:format("hbq_dlq~s.log", [HostName]),
+    LogFile = io_lib:format("hbq_dlq@~s.log", [HostName]),
     logging(LogFile,
             io_lib:format("~s: HBQ wurde initialisiert~n", [now2string(erlang:timestamp())])),
     %       2
     DLQ = initDLQ(DLQLimit, LogFile),
     % 3
     HBQ = [],
-    % 5       4            7
+    % 5     4             7
     PID = spawn(fun() -> loop(DLQ, HBQ, LogFile) end),
     % 6
     register(HBQName, PID),
+    % 8
     PID.
 
 %% @doc Empfängt und verarbeitet kontinuierlich Befehle vom Server im HBQ-Prozess,
@@ -42,20 +43,20 @@ initHBQ(DLQLimit, HBQName) ->
 %% - delHBQ: beendet den HBQ-Prozess
 loop(DLQ, HBQ, LogFile) ->
     % 1
-    {ServerID, Message} =
+    {ServerID, Nachricht} =
         receive
             Any ->
                 Any
         end,
 
-    case Message of
+    case Nachricht of
         % 2
-        {request, pushHBQ, Msg} ->
+        {request, pushHBQ, Message} ->
             logging(LogFile,
-                    io_lib:format("HBQ ~s: Nachricht ~p ~p bekommen.~n",
-                                  [now2string(erlang:timestamp()), pushHBQ, Msg])),
+                    io_lib:format("HBQ ~s: request ~p mit Message = ~p bekommen.~n",
+                                  [now2string(erlang:timestamp()), pushHBQ, Message])),
             % 3
-            {Return, NewHBQ} = pushHBQ(HBQ, DLQ, LogFile, Msg),
+            {Return, NewHBQ} = pushHBQ(HBQ, DLQ, LogFile, Message),
             % 4
             {NewDLQ, UpdatedHBQ} = pushDLQ(Return, NewHBQ, DLQ, LogFile),
             % 5
@@ -116,7 +117,7 @@ pushHBQ(HBQ, DLQ, LogFile, Message = [NNr | _]) ->
                     io_lib:format("HBQ ~s: ~p wurde verworfen~n",
                                   [now2string(erlang:timestamp()), Message])),
             % 4
-            discarded;
+            {discarded, HBQ};
         %                5
         false ->
             TShbqin = erlang:timestamp(),
@@ -126,7 +127,7 @@ pushHBQ(HBQ, DLQ, LogFile, Message = [NNr | _]) ->
             % 7
             CapacityDLQ = dlq:lengthDLQ(DLQ),
             %     6            8
-            case length(HBQ) < 2 / 3 * CapacityDLQ of
+            case length(NewHBQ) < 2 / 3 * CapacityDLQ of
                 true ->
                     % 9
                     {ok, NewHBQ};
