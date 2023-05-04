@@ -95,10 +95,10 @@ loop(DLQ, DLQCapacity, HBQ, LogFile) ->
             ServerID ! {reply, ok},
             loop(DLQ, DLQCapacity, HBQ, LogFile);
         % 15
-        {request, delHBQ} ->
-            logging(LogFile, io_lib:format("HBQ: Nachricht ~p bekommen.~n", [delHBQ])),
+        {request, dellHBQ} ->
+            logging(LogFile, io_lib:format("HBQ: Nachricht ~p bekommen.~n", [dellHBQ])),
             % 16
-            ServerID ! ok
+            ServerID ! {reply, ok}
     end.
 
 %% @doc Fügt eine Nachricht in die HBQ ein.
