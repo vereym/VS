@@ -33,7 +33,7 @@ start() ->
     % 5
     register(ServerName, self()),
     % 6
-    Timer = timer:send_after(Latency * 1000, {fun() -> self() end, terminateServer}),
+    {ok, Timer} = timer:send_after(Latency * 1000, {terminateServer}),
     % 7
     loop(1, Latency, HBQ, CMEM, Timer, LogFile).
 
@@ -60,7 +60,6 @@ startHBQNode(HBQName, HBQNode, DLQLimit, LogFile) ->
 % - listDLQ/HBQ/CMEM: bewirkt ein Logging der DLQ/HBQ/CMEM in einer Datei
 loop(NNrCounter, Latency, HBQ, CMEM, Timer, LogFile) ->
     % 1
-    timer:cancel(Timer),
     receive
         % 3
         {ClientID, getmessages} ->
@@ -123,9 +122,11 @@ loop(NNrCounter, Latency, HBQ, CMEM, Timer, LogFile) ->
             logging(LogFile, format("~p~n", [listCMEM(CMEM)])),
             loop(NNrCounter, Latency, HBQ, CMEM, NewTimer, LogFile);
         % Beenden des Servers bei Ablauf vom Timer.
-        %% {terminateServer} ->
-        %%     logging(LogFile, "Server nach Ablauf seiner Latency terminiert.~n"),
-        %%     exit(normal);
+        {terminateServer} ->
+            send_msg(HBQ, {self(), {request, dellHBQ}}, LogFile),
+            logging(LogFile, "HBQ terminiert.~n"),
+            logging(LogFile, "Server nach Ablauf seiner Latency terminiert.~n"),
+            exit(normal)
         % Abfangen jeder beliebigen Nachricht.
         Any ->
             logging(
@@ -137,6 +138,8 @@ loop(NNrCounter, Latency, HBQ, CMEM, Timer, LogFile) ->
             ),
             loop(NNrCounter, Latency, HBQ, CMEM, Timer, LogFile)
     after Latency * 1000 ->
+        send_msg(HBQ, {self(), {request, dellHBQ}}, LogFile),
+        logging(LogFile, "HBQ terminiert.~n"),
         logging(LogFile, "Server nach Ablauf seiner Latency terminiert.~n"),
         exit(normal)
     end.
