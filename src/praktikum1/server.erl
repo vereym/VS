@@ -34,6 +34,7 @@ start() ->
     register(ServerName, self()),
     % 6
     {ok, Timer} = timer:send_after(Latency * 1000, {terminateServer}),
+    {ok, Timer} = timer:send_after(Latency * 1000, {terminateServer}),
     % 7
     loop(1, Latency, HBQ, CMEM, Timer, LogFile).
 
@@ -138,6 +139,8 @@ loop(NNrCounter, Latency, HBQ, CMEM, Timer, LogFile) ->
             ),
             loop(NNrCounter, Latency, HBQ, CMEM, Timer, LogFile)
     after Latency * 1000 ->
+        send_msg(HBQ, {self(), {request, dellHBQ}}, LogFile),
+        logging(LogFile, "HBQ terminiert.~n"),
         send_msg(HBQ, {self(), {request, dellHBQ}}, LogFile),
         logging(LogFile, "HBQ terminiert.~n"),
         logging(LogFile, "Server nach Ablauf seiner Latency terminiert.~n"),
