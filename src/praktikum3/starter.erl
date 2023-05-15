@@ -1,63 +1,42 @@
 -module(starter).
 
--export([start/0]).
-
--import(util, [logging/2, randomliste/3]).
+-export([start/1]).
 
 -import(util, [logging/2, randomliste/3]).
 -import(vsutil, [get_config_value/2, now2string/1, now2stringD/1]).
-start() ->
+-import(io_lib, [format/2]).
+
+start(StarterNum) ->
     {ok, GGTConfig} = file:consult("ggt.cfg"),
-    {ok, KoordinatorName} = get_config_value(koordinatorname, GGTConfig), % TODO
-    {ok, KoordinatorNode} = get_config_value(koordinatornode, GGTConfig), % TODO
-    {ok, GGTNode} = get_config_value(ggtnode, GGTConfig), % TODO
-
-start() ->
-    {self(), getsteeringval} ! {KoordinatorName, KoordinatorNode},
-    {ok, KoordinatorName} = get_config_value(koordinatorname, GGTConfig), % TODO
-        {steeringval, {AZMin, AZMax}, TermZeit, Anzahl} ->
-            case net_adm:ping(GGTNode) of
-        pang ->
-            logging(
-                LogFile,
-                format("HBQNode ~s konnte nicht gefunden werden.~n", [HBQNode])
-            );
-        pong ->
-            spawn(HBQNode,fun() -> hbq:initHBQ(DLQLimit, HBQName) end)
-    end,
-            
+    {ok, NameServiceNode} = get_config_value(nameservicenode, GGTConfig),
+    {ok, KoordinatorName} = get_config_value(koordinatorname, GGTConfig),
+    {ok, Gruppe} = get_config_value(praktikumsgruppe, GGTConfig),
+    {ok, Team} = get_config_value(teamnummer, GGTConfig),
     {ok, HostName} = inet:gethostname(),
+    LogFile = format("Starter@~s", [HostName]),
 
-startLoop(Anzahl, {_AZMin, _AZMax}, _TermZeit, GGTNode, LogFile, 0) ->
+    case net_adm:ping(NameServiceNode) of
+        pang ->
+            logging(LogFile, format("Nameservice-Node konnte nicht gefunden werden~n", []));
+        pong ->
+            NameService = global:whereis_name(nameservice),
+            NameService ! {self(), {lookup, KoordinatorName}},
+            Koordinator = receive
+                {pin, {Name, Node}} -> {Name, Node}
+            end,
+            Koordinator ! {self(), getsteeringval},
+            receive
+                {steeringval, {AZMin, AZMax}, TermZeit, Anzahl} ->
+                    startLoop(Anzahl, {AZMin, AZMax}, TermZeit, StarterNum, Gruppe, Team, NameService, Koordinator, LogFile, Anzahl)
+            end
+    end.
+
+startLoop(Anzahl, {_AZMin, _AZMax}, _TermZeit, _StarterNum, _Gruppe, _Team, _NameService, _Koordinator, LogFile, 0) ->
     Time = now2string(erlang:timestamp()),
     logging(LogFile, format("~s: Alle ~B ggT-Prozesse gestartet!~n", [Time, Anzahl]));
-startLoop(Anzahl, {AZMin, AZMax}, TermZeit, GGTNode, LogFile, Counter) ->
-            spawn(HBQNode, fun() -> hbq:initHBQ(DLQLimit, HBQName) end)
+startLoop(Anzahl, {AZMin, AZMax}, TermZeit, StarterNum, Gruppe, Team, NameService, Koordinator, LogFile, Counter) ->
+    [Delay] = randomliste(1, AZMin, AZMin),
+    GGTNum = Anzahl - Counter,
+    spawn(fun() -> ggt:start(Delay, TermZeit, GGTNum, StarterNum, Gruppe, Team, NameService, Koordinator) end),
 
-    [Delay]e=trd:dGmlistT 1,AZMAZMx,
-        pang ->
-            logging(
-                LogFile,
-                format("HBQNode ~s konnte nicht gefunden werden.~n", [HBQNode])
-            );
-        pong ->
-            spawn(HBQNode,fun() -> hbq:initHBQ(DLQLimit, HBQName) end)
-    end,
-    startLoop(Anzahl, {AZMin, AZMax}, TermZeit, GGTNode, LogFile, Counter - 1).
-
-startLoop(Anzahl, {_AZMin, _AZMax}, _TermZeit, GGTNode, LogFile, 0) ->
-isarrLoop(Aezahn,im_AZMp(, _AZMx}_TemZe, GGT, LogFile 0) ->
-    logging(LogFile, format("~s: Alle ~B ggT-Prozesse gestartet!~n", [Time, Anzahl]));
-startLoop(Anzahl, {AZMin, AZMax}, TermZeit, GGTNode, LogFile, Counter) ->
-            spawn(HBQNode, fun() -> hbq:initHBQ(DLQLimit, HBQName) end)
-
-    case net_adm:ping(HBQNode) of
-        pang ->
-            logging(
-                LogFile,
-                format("HBQNode ~s konnte nicht gefunden werden.~n", [HBQNode])
-            );
-        pong ->
-            spawn(HBQNode,fun() -> hbq:initHBQ(DLQLimit, HBQName) end)
-    end,
-    startLoop(Anzahl, {AZMin, AZMax}, TermZeit, GGTNode, LogFile, Counter - 1).
+    startLoop(Anzahl, {AZMin, AZMax}, TermZeit, StarterNum, Gruppe, Team, NameService, Koordinator, LogFile, Counter - 1).
