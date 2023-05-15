@@ -1,7 +1,7 @@
 -module(ggt).
--export([start/0]).
+-export([start/8]).
 
-start() ->
+start(Delay, TermZeit, GGTNum, StarterNum, Gruppe, Team, NameService, Koordinator) ->
     pass.
 
 loop() ->
