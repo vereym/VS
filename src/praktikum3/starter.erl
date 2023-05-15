@@ -3,7 +3,7 @@
 -export([start/1]).
 
 -import(util, [logging/2, randomliste/3]).
--import(vsutil, [get_config_value/2, now2string/1, now2stringD/1]).
+-import(vsutil, [get_config_value/2, now2string/1]).
 -import(io_lib, [format/2]).
 
 start(StarterNum) ->
@@ -38,5 +38,6 @@ startLoop(Anzahl, {AZMin, AZMax}, TermZeit, StarterNum, Gruppe, Team, NameServic
     [Delay] = randomliste(1, AZMin, AZMin),
     GGTNum = Anzahl - Counter,
     spawn(fun() -> ggt:start(Delay, TermZeit, GGTNum, StarterNum, Gruppe, Team, NameService, Koordinator) end),
-
+    Time = now2string(erlang:timestamp()),
+    logging(LogFile, format("~s: ggT-Prozess ~B gestartet!~n", [Time, GGTNum])),
     startLoop(Anzahl, {AZMin, AZMax}, TermZeit, StarterNum, Gruppe, Team, NameService, Koordinator, LogFile, Counter - 1).
