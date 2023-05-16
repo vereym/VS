@@ -6,7 +6,9 @@
 -import(vsutil, [get_config_value/2, now2string/1]).
 -import(io_lib, [format/2]).
 
+%     13
 start(StarterNum) ->
+    % 11
     {ok, GGTConfig} = file:consult("ggt.cfg"),
     {ok, NameServiceNode} = get_config_value(nameservicenode, GGTConfig),
     {ok, KoordinatorName} = get_config_value(koordinatorname, GGTConfig),
@@ -24,6 +26,7 @@ start(StarterNum) ->
             Koordinator = receive
                 {pin, {Name, Node}} -> {Name, Node}
             end,
+            % 10
             Koordinator ! {self(), getsteeringval},
             receive
                 {steeringval, {AZMin, AZMax}, TermZeit, Anzahl} ->
@@ -35,6 +38,7 @@ startLoop(Anzahl, {_AZMin, _AZMax}, _TermZeit, _StarterNum, _Gruppe, _Team, _Nam
     Time = now2string(erlang:timestamp()),
     logging(LogFile, format("~s: Alle ~B ggT-Prozesse gestartet!~n", [Time, Anzahl]));
 startLoop(Anzahl, {AZMin, AZMax}, TermZeit, StarterNum, Gruppe, Team, NameService, Koordinator, LogFile, Counter) ->
+    % 12
     [Delay] = randomliste(1, AZMin, AZMin),
     GGTNum = Anzahl - Counter,
     spawn(fun() -> ggt:start(Delay, TermZeit, GGTNum, StarterNum, Gruppe, Team, NameService, Koordinator) end),
