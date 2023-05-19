@@ -10,7 +10,7 @@ start(Delay, TermZeit, GGTNum, StarterNum, Gruppe, Team, NameService, Koordinato
     % 15
     GGTName = list_to_atom(format('~B~B~B~B', [Gruppe, Team, GGTNum, StarterNum])),
     {ok, HostName} = inet:gethostname(),
-    LogFile = format("GGT-~s@~s", [GGTName, HostName]),
+    LogFile = format("GGTP_~s@~s", [GGTName, HostName]),
     % 16
     register(GGTName, self()),
     NameService ! {self(), {rebind, GGTName, node()}},

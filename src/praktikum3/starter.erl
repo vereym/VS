@@ -15,7 +15,7 @@ start(StarterNum) ->
     {ok, Gruppe} = get_config_value(praktikumsgruppe, GGTConfig),
     {ok, Team} = get_config_value(teamnummer, GGTConfig),
     {ok, HostName} = inet:gethostname(),
-    LogFile = format("Starter@~s", [HostName]),
+    LogFile = format("ggtSTARTER_~s@~s.log", [StarterNum, HostName]),
 
     case net_adm:ping(NameServiceNode) of
         pang ->
