@@ -1,10 +1,10 @@
 -module(ggt).
 -export([start/8]).
--import(util, [logging/2, randomliste/3]).
--import(vsutil, [get_config_value/2, now2string/1]).
+-import(util, [logging/2]).
+-import(vsutil, [now2string/1]).
 -import(io_lib, [format/2]).
 
-% TODO: Logs für 11a-e, ggf. receive bei 11 überarbeiten, Testing
+% TODO: Tests
 
 start(Delay, TermZeit, GGTNum, StarterNum, Gruppe, Team, NameService, Koordinator) ->
     Korrigieren = false,
@@ -42,7 +42,7 @@ start(Delay, TermZeit, GGTNum, StarterNum, Gruppe, Team, NameService, Koordinato
     ).
 
 loop(
-    Constants = [Delay, TermZeit, GGTName, NameService, Koordinator, Neighbors, LogFile],
+    Constants = [Delay, TermZeit, GGTName, NameService, Koordinator, _Neighbors, LogFile],
     Korrigieren,
     AnzahlTerm,
     Mi
@@ -68,6 +68,11 @@ loop(
             loop(Constants, Korrigieren, AnzahlTerm, Mi);
         % 7-9
         {sendy, Y} ->
+            Time = now2string(erlang:timestamp()),
+            logging(
+                LogFile,
+                format("~s: {sendy, ~B} erhalten. ggT-Algorithmus wird ausgefuehrt:~n", [Time, Y])
+            ),
             MiNeu = handleSendy(Mi, Y, Delay, GGTName, Koordinator, NameService, LogFile),
             loop(Constants, Korrigieren, AnzahlTerm, MiNeu);
         % 10a
@@ -111,7 +116,11 @@ loop(
             loop(Constants, Korrigieren, AnzahlTerm, Mi);
         % 11b
         {From, {vote, Initiator, MiIn}} ->
-            doVote(Mi, MiIn, GGTName, From, Korrigieren, LogFile),
+            Time = now2string(erlang:timestamp()),
+            logging(
+                LogFile, format("~s: Terminierungsanfrage von ~s erhalten:~n", [Time, Initiator])
+            ),
+            doVote(Mi, MiIn, GGTName, Initiator, From, Korrigieren, LogFile),
             loop(Constants, Korrigieren, AnzahlTerm, Mi);
         % 13
         kill ->
@@ -137,10 +146,6 @@ loop(
 
 % 7 & 8
 handleSendy(Mi, Y, Delay, GGTName, Koordinator, NameService, LogFile) ->
-    Time = now2string(erlang:timestamp()),
-    logging(
-        LogFile, format("~s: {sendy, ~B} erhalten. ggT-Algorithmus wird ausgefuehrt:~n", [Time, Y])
-    ),
     % 7 & 8
     Return =
         if
@@ -189,9 +194,21 @@ handleTermination(
     receive
         % 5 & 11e
         {setpm, MiNeu} ->
+            Time = now2string(erlang:timestamp()),
+            logging(
+                LogFile,
+                format("~s: {setpm, ~B} erhalten. Terminierungsabstimmung abgebrochen.~n", [
+                    Time, MiNeu
+                ])
+            ),
             loop(Constants, Korrigieren, AnzahlTerm, MiNeu);
         % 7-9 & 11e
         {sendY, Y} ->
+            Time = now2string(erlang:timestamp()),
+            logging(
+                LogFile,
+                format("~s: {sendy, ~B} erhalten. Terminierungsabstimmung abgebrochen:~n", [Time, Y])
+            ),
             MiNeu = handleSendy(Mi, Y, Delay, GGTName, Koordinator, NameService, LogFile),
             loop(Constants, Korrigieren, AnzahlTerm, MiNeu);
         % 11e
@@ -199,32 +216,59 @@ handleTermination(
             Time = now2string(erlang:timestamp()),
             logging(
                 LogFile,
-                format("~s: Keine Antwort erhalten. Terminierungsabstimmung nicht erfolgreich.~n", [
-                    Time
-                ])
+                format(
+                    "~s: Keine voteYes-Antwort erhalten. Terminierungsabstimmung nicht erfolgreich.~n",
+                    [
+                        Time
+                    ]
+                )
             ),
             loop(Constants, Korrigieren, AnzahlTerm, Mi);
         % 11d
         {voteYes, VoteGGTName1} ->
+            Time = now2string(erlang:timestamp()),
+            logging(
+                LogFile,
+                format(
+                    "~s: voteYes-Antwort von ~s erhalten.~n",
+                    [
+                        Time, VoteGGTName1
+                    ]
+                )
+            ),
             receive
                 % 5 & 11e
                 {setpm, MiNeu} ->
+                    Time2 = now2string(erlang:timestamp()),
+                    logging(
+                        LogFile,
+                        format("~s: {setpm, ~B} erhalten. Terminierungsabstimmung abgebrochen.~n", [
+                            Time2, MiNeu
+                        ])
+                    ),
                     loop(Constants, Korrigieren, AnzahlTerm, MiNeu);
                 % 7-9 & 11e
                 {sendY, Y} ->
+                    Time2 = now2string(erlang:timestamp()),
+                    logging(
+                        LogFile,
+                        format("~s: {sendy, ~B} erhalten. Terminierungsabstimmung abgebrochen:~n", [
+                            Time2, Y
+                        ])
+                    ),
                     MiNeu = handleSendy(
                         Mi, Y, Delay, GGTName, Koordinator, NameService, LogFile
                     ),
                     loop(Constants, Korrigieren, AnzahlTerm, MiNeu);
                 % 11e
                 {timeout} ->
-                    Time = now2string(erlang:timestamp()),
+                    Time2 = now2string(erlang:timestamp()),
                     logging(
                         LogFile,
                         format(
-                            "~s: Nur eine Antwort erhalten. Terminierungsabstimmung nicht erfolgreich.~n",
+                            "~s: Nur eine voteYes-Antwort erhalten. Terminierungsabstimmung nicht erfolgreich.~n",
                             [
-                                Time
+                                Time2
                             ]
                         )
                     ),
@@ -232,14 +276,23 @@ handleTermination(
                 % 11d
                 {voteYes, VoteGGTName2} ->
                     timer:cancel(Timer),
-                    Time = erlang:timestamp(),
+                    Time2 = erlang:timestamp(),
+                    logging(
+                        LogFile,
+                        format(
+                            "~s: voteYes-Antwort von ~s erhalten.~n",
+                            [
+                                now2string(Time2), VoteGGTName2
+                            ]
+                        )
+                    ),
                     Koordinator ! {self(), briefterm, {GGTName, Mi, Time}},
                     % 12
                     AnzahlTermNeu = AnzahlTerm + 1,
                     logging(
                         LogFile,
                         format("~s: Terminierungsabstimmung #~B erfolgreich gemeldet!~n", [
-                            now2string(Time),
+                            now2string(Time2),
                             AnzahlTermNeu
                         ])
                     ),
@@ -248,17 +301,36 @@ handleTermination(
     end.
 
 % 11
-doVote(Mi, MiIn, GGTName, InitiatorPID, Korrigieren, LogFile) ->
+doVote(Mi, MiIn, GGTName, InitiatorName, InitiatorPID, Korrigieren, LogFile) ->
     if
         % 11b
         Mi == MiIn ->
-            InitiatorPID ! {voteYes, GGTName};
+            InitiatorPID ! {voteYes, GGTName},
+            logging(
+                LogFile,
+                format("   Mi-Werte stimmen ueberein. voteYes an ~s gesendet.~n", [
+                    InitiatorName
+                ])
+            );
         true ->
             if
                 % 11c
                 Korrigieren and (Mi < MiIn) ->
-                    InitiatorPID ! {sendY, Mi};
+                    InitiatorPID ! {sendY, Mi},
+                    logging(
+                        LogFile,
+                        format(
+                            "   Eigener Mi-Wert ist kleiner als erhaltenes MiIn. Korrigierend eingegriffen und ~s informiert.~n",
+                            [InitiatorName]
+                        )
+                    );
                 true ->
-                    ok
+                    logging(
+                        LogFile,
+                        format(
+                            "   Mi-Werte stimmen nicht ueberein. Es wurde ebenfalls nicht korrigierend eingegriffen.~n",
+                            []
+                        )
+                    )
             end
     end.
