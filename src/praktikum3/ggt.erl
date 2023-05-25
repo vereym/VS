@@ -132,52 +132,7 @@ loop(
             end
         % 11
     after TermZeit * 1000 ->
-        {LeftN, RightN} = Neighbors,
-        % 11a
-        LeftN ! {self(), {vote, GGTName, Mi}},
-        receive
-            % 5 & 11e
-            {setpm, MiNeu} ->
-                loop(Constants, Korrigieren, AnzahlTerm, MiNeu);
-            % 7-9 & 11e
-            {sendY, Y} ->
-                MiNeu = handleSendy(Mi, Y, Delay, GGTName, Koordinator, NameService, LogFile),
-                loop(Constants, Korrigieren, AnzahlTerm, MiNeu);
-            % 11d
-            {voteYes, LeftGGTName} ->
-                % 11a
-                RightN ! {self(), {vote, GGTName, Mi}},
-                receive
-                    % 5 & 11e
-                    {setpm, MiNeu} ->
-                        loop(Constants, Korrigieren, AnzahlTerm, MiNeu);
-                    % 7-9 & 11e
-                    {sendY, Y} ->
-                        MiNeu = handleSendy(
-                            Mi, Y, Delay, GGTName, Koordinator, NameService, LogFile
-                        ),
-                        loop(Constants, Korrigieren, AnzahlTerm, MiNeu);
-                    % 11d
-                    {voteYes, RightGGTName} ->
-                        Time = erlang:timestamp(),
-                        Koordinator ! {self(), briefterm, {GGTName, Mi, Time}},
-                        % 12
-                        AnzahlTermNeu = AnzahlTerm + 1,
-                        logging(
-                            LogFile,
-                            format("Terminierungsabstimmung #~B erfolgreich gemeldet!~n", [
-                                AnzahlTermNeu
-                            ])
-                        ),
-                        loop(Constants, Korrigieren, AnzahlTermNeu, Mi)
-                    % 11e
-                after TermZeit * 1000 ->
-                    loop(Constants, Korrigieren, AnzahlTerm, Mi)
-                end
-            % 11e
-        after TermZeit * 1000 ->
-            loop(Constants, Korrigieren, AnzahlTerm, Mi)
-        end
+        handleTermination(Constants, Korrigieren, AnzahlTerm, Mi)
     end.
 
 % 7 & 8
@@ -219,6 +174,78 @@ handleSendy(Mi, Y, Delay, GGTName, Koordinator, NameService, LogFile) ->
     % 9
     timer:sleep(Delay),
     Return.
+
+handleTermination(
+    Constants = [Delay, TermZeit, GGTName, NameService, Koordinator, {LeftN, RightN}, LogFile],
+    Korrigieren,
+    AnzahlTerm,
+    Mi
+) ->
+    % 11a
+    LeftN ! {self(), {vote, GGTName, Mi}},
+    RightN ! {self(), {vote, GGTName, Mi}},
+    % 11e
+    {ok, Timer} = timer:send_after(TermZeit * 1000, {timeout}),
+    receive
+        % 5 & 11e
+        {setpm, MiNeu} ->
+            loop(Constants, Korrigieren, AnzahlTerm, MiNeu);
+        % 7-9 & 11e
+        {sendY, Y} ->
+            MiNeu = handleSendy(Mi, Y, Delay, GGTName, Koordinator, NameService, LogFile),
+            loop(Constants, Korrigieren, AnzahlTerm, MiNeu);
+        % 11e
+        {timeout} ->
+            Time = now2string(erlang:timestamp()),
+            logging(
+                LogFile,
+                format("~s: Keine Antwort erhalten. Terminierungsabstimmung nicht erfolgreich.~n", [
+                    Time
+                ])
+            ),
+            loop(Constants, Korrigieren, AnzahlTerm, Mi);
+        % 11d
+        {voteYes, VoteGGTName1} ->
+            receive
+                % 5 & 11e
+                {setpm, MiNeu} ->
+                    loop(Constants, Korrigieren, AnzahlTerm, MiNeu);
+                % 7-9 & 11e
+                {sendY, Y} ->
+                    MiNeu = handleSendy(
+                        Mi, Y, Delay, GGTName, Koordinator, NameService, LogFile
+                    ),
+                    loop(Constants, Korrigieren, AnzahlTerm, MiNeu);
+                % 11e
+                {timeout} ->
+                    Time = now2string(erlang:timestamp()),
+                    logging(
+                        LogFile,
+                        format(
+                            "~s: Nur eine Antwort erhalten. Terminierungsabstimmung nicht erfolgreich.~n",
+                            [
+                                Time
+                            ]
+                        )
+                    ),
+                    loop(Constants, Korrigieren, AnzahlTerm, Mi);
+                % 11d
+                {voteYes, VoteGGTName2} ->
+                    timer:cancel(Timer),
+                    Time = erlang:timestamp(),
+                    Koordinator ! {self(), briefterm, {GGTName, Mi, Time}},
+                    % 12
+                    AnzahlTermNeu = AnzahlTerm + 1,
+                    logging(
+                        LogFile,
+                        format("~s: Terminierungsabstimmung #~B erfolgreich gemeldet!~n", [
+                            now2string(Time),
+                            AnzahlTermNeu
+                        ])
+                    ),
+                    loop(Constants, Korrigieren, AnzahlTermNeu, Mi)
+            end
+    end.
 
 % 11
 doVote(Mi, MiIn, GGTName, InitiatorPID, Korrigieren, LogFile) ->
