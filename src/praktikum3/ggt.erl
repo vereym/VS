@@ -4,8 +4,6 @@
 -import(vsutil, [now2string/1]).
 -import(io_lib, [format/2]).
 
-% TODO: Tests
-
 start(Delay, TermZeit, GGTNum, StarterNum, Gruppe, Team, NameService, Koordinator) ->
     Korrigieren = false,
     % 1
@@ -154,24 +152,24 @@ handleSendy(Mi, Y, Delay, GGTName, Koordinator, NameService, LogFile) ->
                 MiNeu = (Mi - 1) rem Y + 1,
                 % 8a
                 NameService ! {self(), {twocast, tell, MiNeu}},
-                Time2 = erlang:timestamp(),
+                Time = erlang:timestamp(),
                 % 8b
-                Koordinator ! {briefmi, {GGTName, MiNeu, Time2}},
+                Koordinator ! {briefmi, {GGTName, MiNeu, Time}},
                 logging(
                     LogFile,
                     format(
                         "~s: Mi wurde angepasst (neuer Wert: ~B). Zwei andere ggT-Prozesse und Koordinator wurden informiert.~n",
-                        [now2string(Time2), MiNeu]
+                        [now2string(Time), MiNeu]
                     )
                 ),
                 MiNeu;
             true ->
-                Time3 = now2string(erlang:timestamp()),
+                Time = now2string(erlang:timestamp()),
                 logging(
                     LogFile,
                     format(
                         "~s: Mi wurde nicht angepasst.~n",
-                        [Time3]
+                        [Time]
                     )
                 ),
                 Mi
