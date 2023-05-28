@@ -22,7 +22,7 @@ start(Delay, TermZeit, GGTNum, StarterNum, Gruppe, Team, NameService, Koordinato
             logging(LogFile, format("~s: Erfolgreich beim Namensdienst registriert.~n", [Time]))
     end,
     % 3
-    Koordinator ! {self(), hello},
+    Koordinator ! {hello, GGTName},
     Time2 = now2string(erlang:timestamp()),
     logging(LogFile, format("~s: hello an den Koordinator gesendet.~n", [Time2])),
     % 4
