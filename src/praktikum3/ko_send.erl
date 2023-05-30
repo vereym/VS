@@ -16,28 +16,31 @@ msg(Command) ->
                 io:format("nameservice konnte nicht gefunden werden~n", []),
                 ok;
             pong ->
-                NameServicePID = global:whereis_name(nameservice),
-                nameservice_lookup(NameServicePID, KoordinatorName, "ko_send@logfile.log")
+                NameService = {nameservice, NameServiceNode},
+                nameservice_lookup(NameService, KoordinatorName)
         end,
 
     case Command of
 		help ->
-            io:fwrite(<<"Avaliable Commands:~n"
-		        "help: Liste aller commands,~n"
-		        "vals: Steuerungswerte,~n"
-		        "ggt:  Zufalls ggT,~n"
-		        "{calc,Wggt}: Berechnung des ggT mit einem Wunschggt starten,~n"
-		        "step:  Beendet Anmeldephase,~n"
-		        "nudge:  eine Art ping,~n"
-		        "prompt:  aktuelle Mi's,~n"
-		        "toggle:  Korrektur ändern,~n"
-		        "toggle_ggt: Korrektur GGTs ändern,~n"
-		        "reset: Koordinator in initial Zustandversetzen und Berechnung abbrechen,~n"
-		        "kill: alle Prozesse (bis auf Namensdienst) beenden.~n"/utf8>>);
+            io:format(unicode:characters_to_list("Avaliable Commands:~n"
+		        "    help:        Liste aller commands,~n"
+		        "    vals:        Steuerungswerte,~n"
+		        "    ggt:         Zufalls ggT,~n"
+		        "    {calc,Wggt}: Berechnung des ggT mit einem Wunschggt starten,~n"
+		        "    step:        Beendet Anmeldephase,~n"
+		        "    nudge:       eine Art ping,~n"
+		        "    prompt:      aktuelle Mi's anzeigen,~n"
+		        "    toggle:      Korrektur-Flag ändern,~n"
+		        "    toggle_ggt:  Korrektur-Flags der GGTs ändern,~n"
+		        "    reset:       Koordinator in initial Zustandversetzen und Berechnung abbrechen,~n"
+		        "    kill:        alle Prozesse (bis auf Namensdienst) beenden.~n"));
         vals ->
-            todo;
+            Koordinator ! {self(), getsteeringval},
+            receive
+                Any -> io:fwrite(Any)
+            end;
         ggt ->
-            todo;
+            Koordinator ! ggt;
         {calc, Wggt} ->
             Koordinator ! {calc, Wggt},
             receive
@@ -82,7 +85,7 @@ msg(Command) ->
             io:fwrite("unknown command, try help instead.")
     end.
 
-nameservice_lookup(NameService, Service, LogFile) ->
+nameservice_lookup(NameService, Service) ->
     NameService ! {self(), {lookup, Service}},
     receive
         not_found ->

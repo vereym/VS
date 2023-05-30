@@ -2,7 +2,7 @@
 
 -export([start/0]).
 
--import(vsutil, [get_config_value/2, now2string/1, now2stringD/1]).
+-import(vsutil, [get_config_value/2, now2string/1]).
 -import(util, [logging/2]).
 -import(io_lib, [format/2, format/1]).
 
@@ -28,13 +28,15 @@ start() ->
                 logging(LogFile, format("nameservice konnte nicht gefunden werden~n", [])),
                 ok;
             pong ->
-                NameServicePID = global:whereis_name(nameservice),
-                NameServicePID ! {self(), {bind, KoordinatorName, node()}},
-                receive
-                    ok ->
-                        NameServicePID
-                end
+                {nameservice, NameServiceNode}
         end,
+    NameService ! {self(), {bind, KoordinatorName, node()}},
+    receive
+        ok ->
+            ok;
+        in_use ->
+            logging(LogFile, format("koordinator nicht beim nameservice registriert werden.~n", []))
+    end,
 
     spawn(fun() ->
              initial_state_loop([Arbeitszeit,
@@ -50,11 +52,19 @@ start() ->
 
 %% @doc Bildet den bereit-Zustand ab.
 initial_state_loop(Params =
-                       [_Arbeitszeit = {AZMin, AZMax}, TermZeit, GGTProzessanzahl, NameService],
+                       [_Arbeitszeit = {AZMin, AZMax},
+                        TermZeit,
+                        GGTProzessanzahl,
+                        NameService,
+                        _KoordinatorName],
                    State = [Korrigieren],
                    GGTClients,
                    LogFile) ->
     receive
+        step ->
+            %% TODO kann das nur im initial Zustand passieren?
+            %% TODO  build_ggt_circle(GGTClients, LogFile)
+            ready_state_loop(Params, State, GGTClients, LogFile);
         {From, getsteeringval} ->
             %% AZMin, AZMax = simulierte Verzögerungszeit zur Berechnung in Sekunden
             %% TermZeit = Wartezeit in Sekunden, bis eine Wahl für eine Terminierung initiiert wird
@@ -115,6 +125,9 @@ ready_state_loop(Params,
             toggle_ggt_handler(GGTClients),
             ready_state_loop(Params, State, GGTClients, LogFile);
         {From, briefterm, {Clientname, CMi, CZeit}} ->
+            if Korrigieren and SmallestKnownNumber < CMi ->
+                   From ! {sendy, SmallestKnownNumber}
+            end,
             logging(LogFile,
                     format("~s: ~s mit ~p hat Mi=~p um ~s gemeldet.~n",
                            [now2string(erlang:timestamp()),
@@ -158,10 +171,8 @@ manual_interface(Command,
         reset ->
             kill_ggt_handler(GGTClients, LogFile),
             initial_state_loop(Params, State, GGTClients, LogFile);
-        step ->
-            %% TODO kann das nur im initial Zustand passieren?
-            %% TODO  build_ggt_circle(GGTClients, LogFile)
-            ready_state_loop(Params, State, GGTClients, LogFile);
+        ggt ->
+            lists_nth(rand:uniform(length(GGTClients)), GGTClients);
         prompt ->
             foreach(fun([_, Client, _]) ->
                        Client ! {self(), tellmi},
@@ -264,6 +275,16 @@ lists_is_member(Elem, [Elem | _Tail]) ->
     true;
 lists_is_member(Elem, [_ | Tail]) ->
     lists_is_member(Elem, Tail).
+
+-spec lists_nth(N, List) -> Elem
+    when N :: pos_integer(),
+         List :: [T, ...],
+         Elem :: T,
+         T :: term().
+lists_nth(1, [H | _]) ->
+    H;
+lists_nth(N, [_ | T]) when N > 1 ->
+    lists_nth(N - 1, T).
 
 %% nameservice api
 
