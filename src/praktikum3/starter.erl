@@ -1,10 +1,17 @@
 -module(starter).
 
--export([start/1]).
+-export([go/2, start/1]).
 
 -import(util, [logging/2, randomliste/3]).
 -import(vsutil, [get_config_value/2, now2string/1]).
 -import(io_lib, [format/2]).
+
+go(0, _Start) ->
+    ok;
+
+go(Anzahl, Start) ->
+    spawn(fun() -> start(Start) end),
+    go(Anzahl - 1, Start + 1).
 
 %     13
 start(StarterNum) ->
