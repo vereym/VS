@@ -1,7 +1,7 @@
 -module(ggt).
 -export([start/8]).
 -import(util, [logging/2]).
--import(vsutil, [now2stringD/1]).
+-import(vsutil, [now2string/1]).
 -import(io_lib, [format/2]).
 
 start(Delay, TermZeit, GGTNum, StarterNum, Gruppe, Team, NameService, Koordinator) ->
@@ -13,23 +13,23 @@ start(Delay, TermZeit, GGTNum, StarterNum, Gruppe, Team, NameService, Koordinato
     % 2
     register(GGTName, self()),
     NameService ! {self(), {rebind, GGTName, node()}},
-    Time = now2stringD(erlang:timestamp()),
+    Time = now2string(erlang:timestamp()),
     receive
         ok_overwrite ->
             logging(LogFile, format("~s: Erneut beim Namensdienst registriert.~n", [Time]));
         ok_new ->
-            Time = now2stringD(erlang:timestamp()),
+            Time = now2string(erlang:timestamp()),
             logging(LogFile, format("~s: Erfolgreich beim Namensdienst registriert.~n", [Time]))
     end,
     % 3
     Koordinator ! {hello, GGTName},
-    Time2 = now2stringD(erlang:timestamp()),
+    Time2 = now2string(erlang:timestamp()),
     logging(LogFile, format("~s: hello an den Koordinator gesendet.~n", [Time2])),
     % 4
     Neighbors =
         receive
             {setneighbors, LeftN, RightN} ->
-                Time3 = now2stringD(erlang:timestamp()),
+                Time3 = now2string(erlang:timestamp()),
                 logging(
                     LogFile, format("~s: Nachbarn vom Koordinator erhalten und gesetzt.~n", [Time3])
                 ),
@@ -48,13 +48,13 @@ loop(
     receive
         % 5
         {setpm, MiNeu} ->
-            Time = now2stringD(erlang:timestamp()),
+            Time = now2string(erlang:timestamp()),
             logging(LogFile, format("~s: {setpm, ~B} erhalten.~n", [Time, MiNeu])),
             loop(Constants, Korrigieren, AnzahlTerm, MiNeu);
         % 6
         {calc, start} ->
             Koordinator ! {getinit, self()},
-            Time = now2stringD(erlang:timestamp()),
+            Time = now2string(erlang:timestamp()),
             logging(
                 LogFile,
                 format(
@@ -66,7 +66,7 @@ loop(
             loop(Constants, Korrigieren, AnzahlTerm, Mi);
         % 7-9
         {sendy, Y} ->
-            Time = now2stringD(erlang:timestamp()),
+            Time = now2string(erlang:timestamp()),
             logging(
                 LogFile,
                 format("~s: {sendy, ~B} erhalten. ggT-Algorithmus wird ausgefuehrt:~n", [Time, Y])
@@ -82,7 +82,7 @@ loop(
                     true ->
                         true
                 end,
-            Time = now2stringD(erlang:timestamp()),
+            Time = now2string(erlang:timestamp()),
             logging(
                 LogFile,
                 format("~s: toggle-Befehl erhalten. Neuer Wert des Flags: ~s~n", [Time, Toggled])
@@ -91,7 +91,7 @@ loop(
         % 10b
         {From, tellmi} ->
             From ! {mi, Mi},
-            Time = now2stringD(erlang:timestamp()),
+            Time = now2string(erlang:timestamp()),
             logging(
                 LogFile,
                 format(
@@ -103,7 +103,7 @@ loop(
         % 10c
         {From, pingGGT} ->
             From ! {pongGGT, GGTName},
-            Time = now2stringD(erlang:timestamp()),
+            Time = now2string(erlang:timestamp()),
             logging(
                 LogFile,
                 format(
@@ -114,7 +114,7 @@ loop(
             loop(Constants, Korrigieren, AnzahlTerm, Mi);
         % 11b
         {From, {vote, Initiator, MiIn}} ->
-            Time = now2stringD(erlang:timestamp()),
+            Time = now2string(erlang:timestamp()),
             logging(
                 LogFile, format("~s: Terminierungsanfrage von ~s erhalten:~n", [Time, Initiator])
             ),
@@ -125,10 +125,10 @@ loop(
             NameService ! {self(), {unbind, GGTName}},
             receive
                 ok ->
-                    Time = now2stringD(erlang:timestamp()),
+                    Time = now2string(erlang:timestamp()),
                     logging(LogFile, format("~s: Prozess erfolgreich terminiert!~n", [Time]))
             after 7000 ->
-                Time = now2stringD(erlang:timestamp()),
+                Time = now2string(erlang:timestamp()),
                 logging(
                     LogFile,
                     format(
@@ -159,12 +159,12 @@ handleSendy(Mi, Y, Delay, GGTName, Koordinator, NameService, LogFile) ->
                     LogFile,
                     format(
                         "~s: Mi wurde angepasst (neuer Wert: ~B). Zwei andere ggT-Prozesse und Koordinator wurden informiert.~n",
-                        [now2stringD(Time), MiNeu]
+                        [now2string(Time), MiNeu]
                     )
                 ),
                 MiNeu;
             true ->
-                Time = now2stringD(erlang:timestamp()),
+                Time = now2string(erlang:timestamp()),
                 logging(
                     LogFile,
                     format(
@@ -192,7 +192,7 @@ handleTermination(
     receive
         % 5 & 11e
         {setpm, MiNeu} ->
-            Time = now2stringD(erlang:timestamp()),
+            Time = now2string(erlang:timestamp()),
             logging(
                 LogFile,
                 format("~s: {setpm, ~B} erhalten. Terminierungsabstimmung abgebrochen.~n", [
@@ -202,7 +202,7 @@ handleTermination(
             loop(Constants, Korrigieren, AnzahlTerm, MiNeu);
         % 7-9 & 11e
         {sendY, Y} ->
-            Time = now2stringD(erlang:timestamp()),
+            Time = now2string(erlang:timestamp()),
             logging(
                 LogFile,
                 format("~s: {sendy, ~B} erhalten. Terminierungsabstimmung abgebrochen:~n", [Time, Y])
@@ -211,7 +211,7 @@ handleTermination(
             loop(Constants, Korrigieren, AnzahlTerm, MiNeu);
         % 11e
         {timeout} ->
-            Time = now2stringD(erlang:timestamp()),
+            Time = now2string(erlang:timestamp()),
             logging(
                 LogFile,
                 format(
@@ -224,7 +224,7 @@ handleTermination(
             loop(Constants, Korrigieren, AnzahlTerm, Mi);
         % 11d
         {voteYes, VoteGGTName1} ->
-            Time = now2stringD(erlang:timestamp()),
+            Time = now2string(erlang:timestamp()),
             logging(
                 LogFile,
                 format(
@@ -237,7 +237,7 @@ handleTermination(
             receive
                 % 5 & 11e
                 {setpm, MiNeu} ->
-                    Time2 = now2stringD(erlang:timestamp()),
+                    Time2 = now2string(erlang:timestamp()),
                     logging(
                         LogFile,
                         format("~s: {setpm, ~B} erhalten. Terminierungsabstimmung abgebrochen.~n", [
@@ -247,7 +247,7 @@ handleTermination(
                     loop(Constants, Korrigieren, AnzahlTerm, MiNeu);
                 % 7-9 & 11e
                 {sendY, Y} ->
-                    Time2 = now2stringD(erlang:timestamp()),
+                    Time2 = now2string(erlang:timestamp()),
                     logging(
                         LogFile,
                         format("~s: {sendy, ~B} erhalten. Terminierungsabstimmung abgebrochen:~n", [
@@ -260,7 +260,7 @@ handleTermination(
                     loop(Constants, Korrigieren, AnzahlTerm, MiNeu);
                 % 11e
                 {timeout} ->
-                    Time2 = now2stringD(erlang:timestamp()),
+                    Time2 = now2string(erlang:timestamp()),
                     logging(
                         LogFile,
                         format(
@@ -280,7 +280,7 @@ handleTermination(
                         format(
                             "~s: voteYes-Antwort von ~s erhalten.~n",
                             [
-                                now2stringD(Time2), VoteGGTName2
+                                now2string(Time2), VoteGGTName2
                             ]
                         )
                     ),
@@ -290,7 +290,7 @@ handleTermination(
                     logging(
                         LogFile,
                         format("~s: Terminierungsabstimmung #~B erfolgreich gemeldet!~n", [
-                            now2stringD(Time2),
+                            now2string(Time2),
                             AnzahlTermNeu
                         ])
                     ),
