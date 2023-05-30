@@ -91,15 +91,12 @@ ready_state_loop(Params,
     receive
         %% startet die ggT-Berechnung indem initiales Mi verschickt wird
         {calc, WggT} ->
-            %% TODO
-            %% Mi holen
-            %% an alle ggTs schicken
-            %%
-            %% zufällig 20% aller ggT-Prozesse (mind 2) auswählen
-            %% an diese {calc,start} schicken
-            vsutil:bestimme_mis(WggT, length(GGTClients)),
+            Mis = vsutil:bestimme_mis(WggT, length(GGTClients)),
+            send_mis(Mis, GGTClients, LogFile),
+            GGTStarter = get_random_ggts(GGTClients, LogFile),
+            foreach(fun([_, Client, _]) -> Client ! {calc, start} end, GGTStarter),
             calc_handler(),
-            todo;
+            ready_state_loop(Params, State, GGTClients, LogFile);
         {briefmi, {Clientname, CMi, CZeit}} ->
             %% ggT-Prozess informiert über neues `Mi` um `Time`
             logging(LogFile,
@@ -109,11 +106,11 @@ ready_state_loop(Params,
         {getinit, From} ->
             From ! {sendy, SmallestKnownNumber},
             ready_state_loop(Params, State, GGTClients, LogFile);
-        %% TODO kann das hier passieren oder auch nur im initial Zustandt?
+        %% TODO kann das hier passieren oder auch nur im initial Zustand?
         toggle ->
             New_Korrigieren = toggle_koordinator_handler(Korrigieren),
             ready_state_loop(Params, [New_Korrigieren], GGTClients, LogFile);
-        %% TODO kann das hier passieren oder auch nur im initial Zustandt?
+        %% TODO kann das hier passieren oder auch nur im initial Zustand?
         toggle_ggt ->
             toggle_ggt_handler(GGTClients),
             ready_state_loop(Params, State, GGTClients, LogFile);
@@ -127,6 +124,20 @@ ready_state_loop(Params,
                             now2string(CZeit)])),
             ready_state_loop(Params, State, GGTClients, LogFile)
     end.
+
+get_random_ggts(_, _) ->
+    todo.
+
+send_mis([], [], LogFile) ->
+    logging(LogFile,
+            format("~s: erfolgreich alle Mis versendet.~n", [now2string(erlang:timestamp())])),
+    ok;
+send_mis([Mi | Mis], [[Clientname, Client, _] | GGTClients], LogFile) ->
+    Client ! {setpm, Mi},
+    logging(LogFile,
+            format("~s: Mi=~p, an ~s geschickt.~n",
+                   [now2string(erlang:timestamp()), Mi, Clientname])),
+    send_mis(Mis, GGTClients, LogFile).
 
 exit_state_loop(_Params = [_, _, _, NameService, KoordinatorName],
                 _State,
@@ -149,9 +160,7 @@ manual_interface(Command,
             initial_state_loop(Params, State, GGTClients, LogFile);
         step ->
             %% TODO kann das nur im initial Zustand passieren?
-            %% TODO ggTs MI schicken -> ring an ggT Prozessen aufbauen
-            %% build_ggt_circle(GGTClients, LogFile)
-            %% in bereit-Zustand wechseln
+            %% TODO  build_ggt_circle(GGTClients, LogFile)
             ready_state_loop(Params, State, GGTClients, LogFile);
         prompt ->
             foreach(fun([_, Client, _]) ->
