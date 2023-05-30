@@ -84,7 +84,10 @@ get_free_neighbours(GGTClients, LogFile) ->
     %% TODO muss irgendwie verwalten, welchen ggTs ich schon Neighbour geschickt hab
     ok.
 
-ready_state_loop(Params, State = [Korrigieren], GGTClients, LogFile) ->
+ready_state_loop(Params,
+                 State = [Korrigieren, SmallestKnownNumber],
+                 GGTClients,
+                 LogFile) ->
     receive
         %% startet die ggT-Berechnung indem initiales Mi verschickt wird
         {calc, WggT} ->
@@ -99,9 +102,12 @@ ready_state_loop(Params, State = [Korrigieren], GGTClients, LogFile) ->
             todo;
         {briefmi, {Clientname, CMi, CZeit}} ->
             %% ggT-Prozess informiert über neues `Mi` um `Time`
-            ok,
+            logging(LogFile,
+                    format("~s: ~s hat Mi=~p um ~s gemeldet.~n",
+                           [now2string(erlang:timestamp()), Clientname, CMi, now2string(CZeit)])),
             ready_state_loop(Params, State, GGTClients, LogFile);
         {getinit, From} ->
+            From ! {sendy, SmallestKnownNumber},
             ready_state_loop(Params, State, GGTClients, LogFile);
         %% TODO kann das hier passieren oder auch nur im initial Zustandt?
         toggle ->
@@ -112,7 +118,13 @@ ready_state_loop(Params, State = [Korrigieren], GGTClients, LogFile) ->
             toggle_ggt_handler(GGTClients),
             ready_state_loop(Params, State, GGTClients, LogFile);
         {From, briefterm, {Clientname, CMi, CZeit}} ->
-            %% TODO unter umständen Fehler loggen bzw Korrigieren.
+            logging(LogFile,
+                    format("~s: ~s mit ~p hat Mi=~p um ~s gemeldet.~n",
+                           [now2string(erlang:timestamp()),
+                            Clientname,
+                            From,
+                            CMi,
+                            now2string(CZeit)])),
             ready_state_loop(Params, State, GGTClients, LogFile)
     end.
 
@@ -128,7 +140,7 @@ exit_state_loop(_Params = [_, _, _, NameService, KoordinatorName],
 manual_interface(Command,
                  Params =
                      [_Arbeitszeit, _TermZeit, _GGTProzessanzahl, _NameService, _KoordinatorName],
-                 State = [Korrigieren],
+                 State,
                  GGTClients,
                  LogFile) ->
     case Command of
@@ -142,7 +154,6 @@ manual_interface(Command,
             %% in bereit-Zustand wechseln
             ready_state_loop(Params, State, GGTClients, LogFile);
         prompt ->
-            %% TODO einfach Client funktioniert nicht muss vorher pid aus Client holen
             foreach(fun([_, Client, _]) ->
                        Client ! {self(), tellmi},
                        receive
@@ -170,7 +181,9 @@ manual_interface(Command,
 kill_ggt_handler(GGTClients, LogFile) ->
     foreach(fun([_, Client, _]) ->
                Client ! kill,
-               logging(LogFile, format("kill an ~p geschickt.~n", [Client]))
+               logging(LogFile,
+                       format("~s: kill an ~p geschickt.~n",
+                              [now2string(erlang:timestamp()), Client]))
             end,
             GGTClients),
     ok.
@@ -190,7 +203,7 @@ toggle_koordinator_handler(no_correct) ->
     yes_correct.
 
 toggle_ggt_handler(GGTClients) ->
-    todo.
+    foreach(fun([_, Client, _]) -> Client ! {self(), toggle} end, GGTClients).
 
 %% UTIL
 
@@ -215,30 +228,30 @@ dict_insert(Entry, Dict) ->
             {ok, [Entry | Dict]}
     end.
 
--spec dict_get([tuple()], atom()) -> tuple() | notFound.
-dict_get([], Key) ->
+-spec dict_get(atom(), [tuple()]) -> tuple() | notFound.
+dict_get(_Key, []) ->
     notFound;
-dict_get([[Key, Value] | _], Key) ->
+dict_get(Key, [[Key, Value] | _]) ->
     Value;
-dict_get(List, Key) ->
-    dict_get(List, Key).
+dict_get(Key, List) ->
+    dict_get(Key, List).
 
 dict_set(Key, NewValue, Dict) ->
     dict_set_inner(Key, NewValue, Dict).
 
-dict_set_inner(Key, NewValue, []) ->
+dict_set_inner(_Key, _NewValue, []) ->
     notFound;
 dict_set_inner(Key, NewValue, [[Key | _] | Tail]) ->
     [[Key, NewValue] | Tail];
-dict_set_inner(Key, NewValue, [Elem = [OtherKey | _] | Tail]) ->
+dict_set_inner(Key, NewValue, [Elem = [_OtherKey | _] | Tail]) ->
     {ok, [Elem | dict_set_inner(Key, NewValue, Tail)]}.
 
 %% Lists
 
 %% @doc checks if Elem is in List
-lists_is_member(Elem, []) ->
+lists_is_member(_Elem, []) ->
     false;
-lists_is_member(Elem, [Elem | Tail]) ->
+lists_is_member(Elem, [Elem | _Tail]) ->
     true;
 lists_is_member(Elem, [_ | Tail]) ->
     lists_is_member(Elem, Tail).
