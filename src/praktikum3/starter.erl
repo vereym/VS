@@ -3,7 +3,7 @@
 -export([go/2, start/1]).
 
 -import(util, [logging/2, randomliste/3]).
--import(vsutil, [get_config_value/2, now2string/1]).
+-import(vsutil, [get_config_value/2, now2stringD/1]).
 -import(io_lib, [format/2]).
 
 go(0, _Start) ->
@@ -22,13 +22,13 @@ start(StarterNum) ->
     {ok, Gruppe} = get_config_value(praktikumsgruppe, GGTConfig),
     {ok, Team} = get_config_value(teamnummer, GGTConfig),
     {ok, HostName} = inet:gethostname(),
-    LogFile = format("ggtSTARTER_~s@~s.log", [StarterNum, HostName]),
+    LogFile = format("ggtSTARTER_~B@~s.log", [StarterNum, HostName]),
 
     case net_adm:ping(NameServiceNode) of
         pang ->
             logging(LogFile, format("Nameservice-Node konnte nicht gefunden werden~n", []));
         pong ->
-            NameService = global:whereis_name(nameservice),
+            NameService = {nameservice, NameServiceNode},
             NameService ! {self(), {lookup, KoordinatorName}},
             Koordinator = receive
                 {pin, {Name, Node}} -> {Name, Node}
@@ -42,13 +42,13 @@ start(StarterNum) ->
     end.
 
 startLoop(Anzahl, {_AZMin, _AZMax}, _TermZeit, _StarterNum, _Gruppe, _Team, _NameService, _Koordinator, LogFile, 0) ->
-    Time = now2string(erlang:timestamp()),
+    Time = now2stringD(erlang:timestamp()),
     logging(LogFile, format("~s: Alle ~B ggT-Prozesse gestartet!~n", [Time, Anzahl]));
 startLoop(Anzahl, {AZMin, AZMax}, TermZeit, StarterNum, Gruppe, Team, NameService, Koordinator, LogFile, Counter) ->
     % 12
     [Delay] = randomliste(1, AZMin, AZMin),
     GGTNum = Anzahl - Counter,
     spawn(fun() -> ggt:start(Delay, TermZeit, GGTNum, StarterNum, Gruppe, Team, NameService, Koordinator) end),
-    Time = now2string(erlang:timestamp()),
+    Time = now2stringD(erlang:timestamp()),
     logging(LogFile, format("~s: ggT-Prozess ~B gestartet!~n", [Time, GGTNum])),
     startLoop(Anzahl, {AZMin, AZMax}, TermZeit, StarterNum, Gruppe, Team, NameService, Koordinator, LogFile, Counter - 1).
