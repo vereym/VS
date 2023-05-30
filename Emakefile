@@ -1,1 +1,1 @@
-{["src/praktikum1/dlq", "src/praktikum1/hbq", "src/praktikum1/server", "src/praktikum1/client"], []}.
+{["src/praktikum3/ggt", "src/praktikum3/koordinator", "src/praktikum3/starter"], []}.
