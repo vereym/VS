@@ -66,8 +66,7 @@ initial_state_loop(Params =
             Client = nameservice_lookup(NameService, Clientname, LogFile),
             {N1, N2} = get_free_neighbours(GGTClients, LogFile),
             Client ! {setneighbors, N1, N2},
-            %% client in GGTClients updaten
-            NewGGTClients = dict_set(Clientname, {N1, N2}, GGTClients),
+            {ok, NewGGTClients} = dict_insert([Clientname, Client, {N1, N2}], GGTClients),
             initial_state_loop(Params, State, NewGGTClients, LogFile);
         toggle ->
             New_Korrigieren = toggle_koordinator_handler(Korrigieren),
@@ -144,7 +143,7 @@ manual_interface(Command,
             ready_state_loop(Params, State, GGTClients, LogFile);
         prompt ->
             %% TODO einfach Client funktioniert nicht muss vorher pid aus Client holen
-            foreach(fun(Client) ->
+            foreach(fun([_, Client, _]) ->
                        Client ! {self(), tellmi},
                        receive
                            {mi, Mi} -> logging(LogFile, format("~s hat Mi = ~p.~n", [Client, Mi]))
@@ -152,7 +151,7 @@ manual_interface(Command,
                     end,
                     GGTClients);
         nudge ->
-            foreach(fun(Client) ->
+            foreach(fun([_, Client, _]) ->
                        Client ! {self(), pingGGT},
                        receive
                            {pongGGT, GGTname} ->
@@ -169,7 +168,7 @@ manual_interface(Command,
     end.
 
 kill_ggt_handler(GGTClients, LogFile) ->
-    foreach(fun(Client) ->
+    foreach(fun([_, Client, _]) ->
                Client ! kill,
                logging(LogFile, format("kill an ~p geschickt.~n", [Client]))
             end,
