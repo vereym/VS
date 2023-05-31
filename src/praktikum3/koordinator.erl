@@ -6,6 +6,8 @@
 -import(util, [logging/2]).
 -import(io_lib, [format/2, format/1]).
 
+-define(stime, now2string(erlang:timestamp())).
+
 start() ->
     {ok, HostName} = inet:gethostname(),
     LogFile = format("unser_koordinator@~s.log", [HostName]),
@@ -33,36 +35,42 @@ start() ->
     nameservice_rebind(NameService, KoordinatorName, LogFile),
 
     spawn(fun() ->
-             initial_state_loop([Arbeitszeit,
+             initial_state_loop({Arbeitszeit,
                                  TermZeit,
                                  GGTProzessanzahl,
                                  NameService,
-                                 KoordinatorName],
-                                [Korrigieren],
-                                [],
+                                 KoordinatorName},
+                                _State = {Korrigieren, inifinity, [], 0},
+                                _GGTClients = [],
                                 LogFile)
           end),
     ok.
 
 %% @doc Bildet den bereit-Zustand ab.
 initial_state_loop(Params =
-                       [_Arbeitszeit = {AZMin, AZMax},
+                       {_Arbeitszeit = {AZMin, AZMax},
                         TermZeit,
                         GGTProzessanzahl,
                         NameService,
-                        _KoordinatorName],
-                   State = [Korrigieren],
+                        _KoordinatorName},
+                   State = {Korrigieren, _SmallestKnownNumber, _Mis, StarterCount},
                    GGTClients,
                    LogFile) ->
     logging(LogFile, format("koordinator ist in initial_state_loop~n", [])),
     receive
         %% 4. durch step wechselt der Koordinator in den bereit Zustand
         step ->
-            %% TODO  build_ggt_circle(GGTClients, LogFile)
-            ready_state_loop(Params, State, GGTClients, LogFile);
+            MissingGGTs = length(GGTClients) - StarterCount * GGTProzessanzahl,
+            logging(LogFile,
+                    format("~s: Starte Berechnung, vermisse ~B ggT-Prozesse.~n",
+                           [?stime, MissingGGTs])),
+            NewGGTClients = build_ggt_circle(GGTClients, LogFile),
+            foreach(fun([_, Client, {N1, N2}]) -> Client ! {setneighbors, N1, N2} end,
+                    NewGGTClients),
+            ready_state_loop(Params, State, NewGGTClients, LogFile);
         {From, getsteeringval} ->
-            %% AZMin, AZMax = simulierte Verzögerungszeit zur Berechnung in Sekunden
             io:format("getsteeringval-nachricht erhalten~n"),
+            %% AZMin, AZMax = simulierte Verzögerungszeit zur Berechnung in Sekunden
             %% TermZeit = Wartezeit in Sekunden, bis eine Wahl für eine Terminierung initiiert wird
             %% GGTProzessanzahl = Anzahl zu startender ggT-Prozesse
             From ! Msg = {steeringval, {AZMin, AZMax}, TermZeit, GGTProzessanzahl},
@@ -70,29 +78,56 @@ initial_state_loop(Params =
             initial_state_loop(Params, State, GGTClients, LogFile);
         {hello, Clientname} ->
             Client = nameservice_lookup(NameService, Clientname, LogFile),
-            {N1, N2} = get_free_neighbours(GGTClients, LogFile),
-            Client ! {setneighbors, N1, N2},
-            {ok, NewGGTClients} = dict_insert([Clientname, Client, {N1, N2}], GGTClients),
+            {ok, NewGGTClients} = dict_insert([Clientname, Client, {none, none}], GGTClients),
             initial_state_loop(Params, State, NewGGTClients, LogFile);
         toggle ->
             New_Korrigieren = toggle_koordinator_handler(Korrigieren),
             initial_state_loop(Params, [New_Korrigieren], GGTClients, LogFile);
         toggle_ggt ->
             toggle_ggt_handler(GGTClients),
+            initial_state_loop(Params, State, GGTClients, LogFile);
+        Any ->
+            manual_interface(Any, Params, State, GGTClients, LogFile),
             initial_state_loop(Params, State, GGTClients, LogFile)
-        % Any ->
-        %     manual_interface(Any, Params, State, GGTClients, LogFile),
-        %     initial_state_loop(Params, State, GGTClients, LogFile)
     end,
     ok.
 
-get_free_neighbours(_GGTClients, _LogFile) ->
-    %% TODO muss irgendwie verwalten, welchen ggTs ich schon Neighbour geschickt hab
-    ok.
+%% @doc Teilt den regestrierten GGTs ihre Nachbarn zu.
+build_ggt_circle(GGTClients, LogFile) ->
+    logging(LogFile, format("~s: Koordinator baut Ring auf.~n", [?stime])),
+    ShuffledGGTClients = util:shuffle(GGTClients),
+    set_neighbours(ShuffledGGTClients).
+
+set_neighbours(GGTClients) ->
+    set_neighbours(GGTClients, []).
+
+set_neighbours([], Out) ->
+    Out;
+set_neighbours([[Clientname, Client, {none, none}], [BClientname, BClient, {none, none}]
+                | Tail],
+               Out) ->
+    NewAggt = [Clientname, Client, {none, BClientname}],
+    NewBggt = [BClientname, BClient, {Clientname, none}],
+    set_neighbours([NewBggt | Tail], [NewAggt | Out]);
+%% hier sind wir beim vorletzten Client in GGTClients angekommen
+%% und verbinden den letzen Client in GGTClients mit dem ersten in Out
+set_neighbours([[Clientname, Client, {N1, none}], [BClientname, BClient, {none, none}]],
+               Out) ->
+    [FClientname, FClient, {none, FN2}] = lists_nth(length(Out - 1), Out),
+    NewFirst = [FClientname, FClient, {BClientname, FN2}],
+    NewAggt = [Clientname, Client, {N1, BClientname}],
+    NewBggt = [BClientname, BClient, {Clientname, FClientname}],
+    set_neighbours([], [NewFirst, NewBggt, NewAggt | Out]);
+set_neighbours([[Clientname, Client, {N1, none}], [BClientname, BClient, {none, none}]
+                | Tail],
+               Out) ->
+    NewAggt = [Clientname, Client, {N1, BClientname}],
+    NewBggt = [BClientname, BClient, {Clientname, none}],
+    set_neighbours([NewBggt | Tail], [NewAggt | Out]).
 
 %% @doc bildet den "bereit" Zustand des Koordinators ab
 ready_state_loop(Params,
-                 State = [Korrigieren, SmallestKnownNumber, Mis],
+                 State = {Korrigieren, SmallestKnownNumber, Mis, _StarterCount},
                  GGTClients,
                  LogFile) ->
     logging(LogFile, format("koordinator ist in ready_state_loop~n", [])),
@@ -111,7 +146,7 @@ ready_state_loop(Params,
             %% ggT-Prozess informiert über neues `Mi` um `Time`
             logging(LogFile,
                     format("~s: ~s hat Mi=~p um ~s gemeldet.~n",
-                           [now2string(erlang:timestamp()), Clientname, CMi, now2string(CZeit)])),
+                           [?stime, Clientname, CMi, now2string(CZeit)])),
             ready_state_loop(Params, State, GGTClients, LogFile);
         {getinit, From} ->
             [Mi | _Tail] = Mis,
@@ -123,12 +158,11 @@ ready_state_loop(Params,
             end,
             logging(LogFile,
                     format("~s: ~s mit ~p hat Mi=~p um ~s gemeldet.~n",
-                           [now2string(erlang:timestamp()),
-                            Clientname,
-                            From,
-                            CMi,
-                            now2string(CZeit)])),
-            ready_state_loop(Params, State, GGTClients, LogFile)
+                           [?stime, Clientname, From, CMi, now2string(CZeit)])),
+            ready_state_loop(Params, State, GGTClients, LogFile);
+        Any ->
+            manual_interface(Any, Params, State, GGTClients, LogFile),
+            initial_state_loop(Params, State, GGTClients, LogFile)
     end.
 
 get_random_ggts(GGTClients, _LogFile) ->
@@ -154,17 +188,14 @@ get_n_ggts(N, [GGT | Tail], Out) ->
     get_n_ggts(N - 1, Tail, [GGT | Out]).
 
 send_mis([], [], LogFile) ->
-    logging(LogFile,
-            format("~s: erfolgreich alle Mis versendet.~n", [now2string(erlang:timestamp())])),
+    logging(LogFile, format("~s: erfolgreich alle Mis versendet.~n", [?stime])),
     ok;
 send_mis([Mi | Mis], [[Clientname, Client, _] | GGTClients], LogFile) ->
     Client ! {setpm, Mi},
-    logging(LogFile,
-            format("~s: Mi=~p, an ~s geschickt.~n",
-                   [now2string(erlang:timestamp()), Mi, Clientname])),
+    logging(LogFile, format("~s: Mi=~p, an ~s geschickt.~n", [?stime, Mi, Clientname])),
     send_mis(Mis, GGTClients, LogFile).
 
-exit_state_loop(_Params = [_, _, _, NameService, KoordinatorName],
+exit_state_loop(_Params = {_, _, _, NameService, KoordinatorName},
                 _State,
                 GGTClients,
                 LogFile) ->
@@ -174,12 +205,7 @@ exit_state_loop(_Params = [_, _, _, NameService, KoordinatorName],
     ok.
 
 %% @doc Commands des Manuellen Interfaces des Koordinators, welche immer verfügbar sind.
-manual_interface(Command,
-                 Params =
-                     [_Arbeitszeit, _TermZeit, _GGTProzessanzahl, _NameService, _KoordinatorName],
-                 State,
-                 GGTClients,
-                 LogFile) ->
+manual_interface(Command, Params, State, GGTClients, LogFile) ->
     case Command of
         reset ->
             kill_ggt_handler(GGTClients, LogFile),
@@ -208,15 +234,16 @@ manual_interface(Command,
                     %%     logging(LogFile, format("~s ist nicht mehr am Leben.~n", [Client]))
                     GGTClients);
         kill ->
-            exit_state_loop(Params, State, LogFile, GGTClients)
+            exit_state_loop(Params, State, LogFile, GGTClients);
+        Any ->
+            logging(LogFile,
+                    format("~s: konnte mit Nachricht=~p nichts anfangen.~n", [?stime, Any]))
     end.
 
 kill_ggt_handler(GGTClients, LogFile) ->
     foreach(fun([_, Client, _]) ->
                Client ! kill,
-               logging(LogFile,
-                       format("~s: kill an ~p geschickt.~n",
-                              [now2string(erlang:timestamp()), Client]))
+               logging(LogFile, format("~s: kill an ~p geschickt.~n", [?stime, Client]))
             end,
             GGTClients),
     ok.
