@@ -30,13 +30,14 @@ start() ->
             pong ->
                 {nameservice, NameServiceNode}
         end,
-    NameService ! {self(), {bind, KoordinatorName, node()}},
-    receive
-        ok ->
-            ok;
-        in_use ->
-            logging(LogFile, format("koordinator nicht beim nameservice registriert werden.~n", []))
-    end,
+    %% NameService ! {self(), {bind, KoordinatorName, node()}},
+    %% receive
+    %%     ok ->
+    %%         ok;
+    %%     in_use ->
+    %%         logging(LogFile, format("koordinator nicht beim nameservice registriert werden.~n", []))
+    %% end,
+    nameservice_rebind(NameService, KoordinatorName, LogFile),
 
     spawn(fun() ->
              initial_state_loop([Arbeitszeit,
@@ -290,6 +291,7 @@ lists_nth(N, [_ | T]) when N > 1 ->
 
 nameservice_rebind(NameService, Service, LogFile) ->
     NameService ! {self(), {rebind, Service, node()}},
+    logging(LogFile, format("~s: rebind an nameservice geschickt.~n", [now2string(erlang:timestamp())])),
     receive
         ok_overwrite ->
             ok_overwrite;
