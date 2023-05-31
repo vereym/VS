@@ -174,13 +174,22 @@ ready_state_loop(
             ),
             ready_state_loop(Params, State, GGTClients, LogFile);
         {getinit, From} ->
-            [Mi | _Tail] = Mis,
+            Mi = lists_nth(rand:uniform(length(Mis)), Mis),
             From ! {sendy, Mi},
+            logging(
+                LogFile,
+                format(
+                    "~s: Initialen Wert ~B gesendet.~n",
+                    [?stime, Mi]
+                )
+            ),
             ready_state_loop(Params, State, GGTClients, LogFile);
         {From, briefterm, {Clientname, CMi, CZeit}} ->
             if
                 Korrigieren and SmallestKnownNumber < CMi ->
-                    From ! {sendy, SmallestKnownNumber}
+                    From ! {sendy, SmallestKnownNumber};
+                true ->
+                    ok
             end,
             logging(
                 LogFile,
@@ -234,7 +243,13 @@ exit_state_loop(
     LogFile
 ) ->
     logging(LogFile, format("koordinator ist in exit_state_loop~n", [])),
-    kill_ggt_handler(GGTClients, LogFile),
+    foreach(
+        fun([_, Client, _]) ->
+            Client ! kill,
+            logging(LogFile, format("~s: kill an ~p geschickt.~n", [?stime, Client]))
+        end,
+        GGTClients
+    ),
     nameservice_unbind(NameService, KoordinatorName, LogFile),
     ok.
 

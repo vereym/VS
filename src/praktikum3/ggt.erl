@@ -297,7 +297,7 @@ handleTermination(
             ),
             loop(Constants, Korrigieren, AnzahlTerm, MiNeu);
         % 7-9 & 11e
-        {sendY, Y} ->
+        {sendy, Y} ->
             Time = now2string(erlang:timestamp()),
             logging(
                 LogFile,
@@ -342,7 +342,7 @@ handleTermination(
                     ),
                     loop(Constants, Korrigieren, AnzahlTerm, MiNeu);
                 % 7-9 & 11e
-                {sendY, Y} ->
+                {sendy, Y} ->
                     Time2 = now2string(erlang:timestamp()),
                     logging(
                         LogFile,
@@ -410,7 +410,7 @@ doVote(Mi, MiIn, GGTName, InitiatorName, InitiatorPID, Korrigieren, LogFile) ->
             if
                 % 11c
                 Korrigieren and (Mi < MiIn) ->
-                    InitiatorPID ! {sendY, Mi},
+                    InitiatorPID ! {sendy, Mi},
                     logging(
                         LogFile,
                         format(
