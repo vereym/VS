@@ -5,7 +5,7 @@
 -import(io_lib, [format/2]).
 
 start(Delay, TermZeit, GGTNum, StarterNum, Gruppe, Team, NameService, Koordinator) ->
-    Korrigieren = false,
+    Korrigieren = true,
     % 1
     GGTName = list_to_atom(format('~B~B~B~B', [Gruppe, Team, GGTNum, StarterNum])),
     {ok, HostName} = inet:gethostname(),
@@ -82,7 +82,7 @@ loop_initial(
                 LogFile,
                 format("~s: toggle-Befehl erhalten. Neuer Wert des Flags: ~s~n", [Time, Toggled])
             ),
-            loop(Constants, Toggled, AnzahlTerm, Mi);
+            loop_initial(Constants, Toggled, AnzahlTerm, Mi);
         % 10b
         {From, tellmi} ->
             From ! {mi, Mi},
@@ -94,7 +94,7 @@ loop_initial(
                     [Time]
                 )
             ),
-            loop(Constants, Korrigieren, AnzahlTerm, Mi);
+            loop_initial(Constants, Korrigieren, AnzahlTerm, Mi);
         % 10c
         {From, pingGGT} ->
             From ! {pongGGT, GGTName},
@@ -106,7 +106,7 @@ loop_initial(
                     [Time]
                 )
             ),
-            loop(Constants, Korrigieren, AnzahlTerm, Mi);
+            loop_initial(Constants, Korrigieren, AnzahlTerm, Mi);
         % 11b
         {From, {vote, Initiator, MiIn}} ->
             Time = now2string(erlang:timestamp()),
@@ -114,7 +114,7 @@ loop_initial(
                 LogFile, format("~s: Terminierungsanfrage von ~s erhalten:~n", [Time, Initiator])
             ),
             doVote(Mi, MiIn, GGTName, Initiator, From, Korrigieren, LogFile),
-            loop(Constants, Korrigieren, AnzahlTerm, Mi);
+            loop_initial(Constants, Korrigieren, AnzahlTerm, Mi);
         % 13
         kill ->
             NameService ! {self(), {unbind, GGTName}},
@@ -271,7 +271,7 @@ handleSendy(Mi, Y, Delay, GGTName, Koordinator, NameService, LogFile) ->
                 Mi
         end,
     % 9
-    timer:sleep(Delay),
+    timer:sleep(Delay * 1000),
     Return.
 
 handleTermination(
