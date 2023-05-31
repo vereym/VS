@@ -8,7 +8,7 @@
 
 start() ->
     {ok, HostName} = inet:gethostname(),
-    LogFile = format("koordinator@~s.log", [HostName]),
+    LogFile = format("unser_koordinator@~s.log", [HostName]),
 
     %% 1. config auslesen
     {ok, KoordinatorConfig} = file:consult("koordinator.cfg"),
@@ -92,7 +92,7 @@ initial_state_loop(Params =
     end,
     ok.
 
-get_free_neighbours(GGTClients, LogFile) ->
+get_free_neighbours(_GGTClients, _LogFile) ->
     %% TODO muss irgendwie verwalten, welchen ggTs ich schon Neighbour geschickt hab
     ok.
 
@@ -294,7 +294,8 @@ lists_nth(N, [_ | T]) when N > 1 ->
 
 nameservice_rebind(NameService, Service, LogFile) ->
     NameService ! {self(), {rebind, Service, node()}},
-    logging(LogFile, format("~s: rebind an nameservice geschickt.~n", [now2string(erlang:timestamp())])),
+    logging(LogFile,
+            format("~s: rebind an nameservice geschickt.~n", [now2string(erlang:timestamp())])),
     receive
         ok_overwrite ->
             ok_overwrite;
@@ -304,6 +305,8 @@ nameservice_rebind(NameService, Service, LogFile) ->
 
 nameservice_lookup(NameService, Service, LogFile) ->
     NameService ! {self(), {lookup, Service}},
+    logging(LogFile,
+            format("~s: used lookup with ~s.~n", [now2string(erlang:timestamp()), Service])),
     receive
         not_found ->
             not_found;
@@ -324,18 +327,18 @@ nameservice_unbind(NameService, Service, LogFile) ->
     logging(LogFile, format("~s erfolgreich entregistriert.~n", [Service])),
     Return.
 
-nameservice_twocast(NameService, MiNew, LogFile) ->
-    NameService ! {self(), {twocast, tell, MiNew}},
-    logging(LogFile, format("twocast mit neuem Mi: ~p ausgeführt.~n", [MiNew])),
-    ok.
+%% nameservice_twocast(NameService, MiNew, LogFile) ->
+%%     NameService ! {self(), {twocast, tell, MiNew}},
+%%     logging(LogFile, format("twocast mit neuem Mi: ~p ausgeführt.~n", [MiNew])),
+%%     ok.
 
-nameservice_reset(NameService, LogFile) ->
-    NameService ! {self(), reset},
-    receive
-        ok ->
-            logging(LogFile,
-                    format("~s: Nameservice reset.~n",
-                           [vsutil:now2string(
-                                erlang:timestamp())])),
-            ok
-    end.
+%% nameservice_reset(NameService, LogFile) ->
+%%     NameService ! {self(), reset},
+%%     receive
+%%         ok ->
+%%             logging(LogFile,
+%%                     format("~s: Nameservice reset.~n",
+%%                            [vsutil:now2string(
+%%                                 erlang:timestamp())])),
+%%             ok
+%%     end.
