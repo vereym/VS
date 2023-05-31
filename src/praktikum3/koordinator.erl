@@ -279,23 +279,23 @@ dict_insert(Entry, Dict) ->
             {ok, [Entry | Dict]}
     end.
 
--spec dict_get(atom(), [tuple()]) -> tuple() | notFound.
-dict_get(_Key, []) ->
-    notFound;
-dict_get(Key, [[Key, Value] | _]) ->
-    Value;
-dict_get(Key, List) ->
-    dict_get(Key, List).
+%% -spec dict_get(atom(), [tuple()]) -> tuple() | notFound.
+%% dict_get(_Key, []) ->
+%%     notFound;
+%% dict_get(Key, [[Key, Value] | _]) ->
+%%     Value;
+%% dict_get(Key, List) ->
+%%     dict_get(Key, List).
 
-dict_set(Key, NewValue, Dict) ->
-    dict_set_inner(Key, NewValue, Dict).
+%% dict_set(Key, NewValue, Dict) ->
+%%     dict_set_inner(Key, NewValue, Dict).
 
-dict_set_inner(_Key, _NewValue, []) ->
-    notFound;
-dict_set_inner(Key, NewValue, [[Key | _] | Tail]) ->
-    [[Key, NewValue] | Tail];
-dict_set_inner(Key, NewValue, [Elem = [_OtherKey | _] | Tail]) ->
-    {ok, [Elem | dict_set_inner(Key, NewValue, Tail)]}.
+%% dict_set_inner(_Key, _NewValue, []) ->
+%%     notFound;
+%% dict_set_inner(Key, NewValue, [[Key | _] | Tail]) ->
+%%     [[Key, NewValue] | Tail];
+%% dict_set_inner(Key, NewValue, [Elem = [_OtherKey | _] | Tail]) ->
+    %% {ok, [Elem | dict_set_inner(Key, NewValue, Tail)]}.
 
 %% Lists
 
