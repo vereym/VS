@@ -61,6 +61,7 @@ initial_state_loop(Params =
                    State = [Korrigieren],
                    GGTClients,
                    LogFile) ->
+    logging(LogFile, format("koordinator ist in initial_state_loop~n", [])),
     receive
         step ->
             %% TODO kann das nur im initial Zustand passieren?
@@ -99,6 +100,7 @@ ready_state_loop(Params,
                  State = [Korrigieren, SmallestKnownNumber],
                  GGTClients,
                  LogFile) ->
+    logging(LogFile, format("koordinator ist in ready_state_loop~n", [])),
     receive
         %% startet die ggT-Berechnung indem initiales Mi verschickt wird
         {calc, WggT} ->
@@ -157,6 +159,7 @@ exit_state_loop(_Params = [_, _, _, NameService, KoordinatorName],
                 _State,
                 GGTClients,
                 LogFile) ->
+    logging(LogFile, format("koordinator ist in exit_state_loop~n", [])),
     kill_ggt_handler(GGTClients, LogFile),
     nameservice_unbind(NameService, KoordinatorName, LogFile),
     ok.
