@@ -35,52 +35,25 @@ msg(Command) ->
 		        "    reset:       Koordinator in initial Zustandversetzen und Berechnung abbrechen,~n"
 		        "    kill:        alle Prozesse (bis auf Namensdienst) beenden.~n"));
         vals ->
-            Koordinator ! {self(), getsteeringval},
-            receive
-                Any -> io:fwrite(Any)
-            end;
+            Koordinator ! {self(), getsteeringval};
         ggt ->
             Koordinator ! ggt;
         {calc, Wggt} ->
-            Koordinator ! {calc, Wggt},
-            receive
-                Any -> io:fwrite(Any)
-            end;
+            Koordinator ! {calc, Wggt};
         step ->
-            Koordinator ! step,
-            receive
-                Any -> io:fwrite(Any)
-            end;
+            Koordinator ! step;
         nudge ->
-            Koordinator ! nudge,
-            receive
-                Any -> io:fwrite(Any)
-            end;
+            Koordinator ! nudge;
         prompt ->
-            Koordinator ! prompt,
-            receive
-                Any -> io:fwrite(Any)
-            end;
+            Koordinator ! prompt;
         toggle ->
-            Koordinator ! toggle,
-            receive
-                Any -> io:fwrite(Any)
-            end;
+            Koordinator ! toggle;
         toggle_ggt ->
-            Koordinator ! toggle_ggt,
-            receive
-                Any -> io:fwrite(Any)
-            end;
+            Koordinator ! toggle_ggt;
         reset ->
-            Koordinator ! reset,
-            receive
-                Any -> io:fwrite(Any)
-            end;
+            Koordinator ! reset;
         kill ->
-            Koordinator ! kill,
-            receive
-                Any -> io:fwrite(Any)
-            end;
+            Koordinator ! kill;
         _ ->
             io:fwrite("unknown command, try help instead.")
     end.
