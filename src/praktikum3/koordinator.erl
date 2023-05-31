@@ -30,13 +30,6 @@ start() ->
             pong ->
                 {nameservice, NameServiceNode}
         end,
-    %% NameService ! {self(), {bind, KoordinatorName, node()}},
-    %% receive
-    %%     ok ->
-    %%         ok;
-    %%     in_use ->
-    %%         logging(LogFile, format("koordinator nicht beim nameservice registriert werden.~n", []))
-    %% end,
     nameservice_rebind(NameService, KoordinatorName, LogFile),
 
     spawn(fun() ->
@@ -63,8 +56,8 @@ initial_state_loop(Params =
                    LogFile) ->
     logging(LogFile, format("koordinator ist in initial_state_loop~n", [])),
     receive
+        %% 4. durch step wechselt der Koordinator in den bereit Zustand
         step ->
-            %% TODO kann das nur im initial Zustand passieren?
             %% TODO  build_ggt_circle(GGTClients, LogFile)
             ready_state_loop(Params, State, GGTClients, LogFile);
         {From, getsteeringval} ->
@@ -96,20 +89,23 @@ get_free_neighbours(_GGTClients, _LogFile) ->
     %% TODO muss irgendwie verwalten, welchen ggTs ich schon Neighbour geschickt hab
     ok.
 
+%% @doc bildet den "bereit" Zustand des Koordinators ab
 ready_state_loop(Params,
-                 State = [Korrigieren, SmallestKnownNumber],
+                 State = [Korrigieren, SmallestKnownNumber, Mis],
                  GGTClients,
                  LogFile) ->
     logging(LogFile, format("koordinator ist in ready_state_loop~n", [])),
     receive
-        %% startet die ggT-Berechnung indem initiales Mi verschickt wird
+        %% 4. startet die ggT-Berechnung indem ein initiales Mi verschickt wird
         {calc, WggT} ->
-            Mis = vsutil:bestimme_mis(WggT, length(GGTClients)),
-            send_mis(Mis, GGTClients, LogFile),
+            NewMis = vsutil:bestimme_mis(WggT, length(GGTClients)),
+            send_mis(NewMis, GGTClients, LogFile),
             GGTStarter = get_random_ggts(GGTClients, LogFile),
             foreach(fun([_, Client, _]) -> Client ! {calc, start} end, GGTStarter),
-            calc_handler(),
-            ready_state_loop(Params, State, GGTClients, LogFile);
+            ready_state_loop(Params,
+                             [Korrigieren, SmallestKnownNumber, NewMis],
+                             GGTClients,
+                             LogFile);
         {briefmi, {Clientname, CMi, CZeit}} ->
             %% ggT-Prozess informiert über neues `Mi` um `Time`
             logging(LogFile,
@@ -117,15 +113,8 @@ ready_state_loop(Params,
                            [now2string(erlang:timestamp()), Clientname, CMi, now2string(CZeit)])),
             ready_state_loop(Params, State, GGTClients, LogFile);
         {getinit, From} ->
-            From ! {sendy, SmallestKnownNumber},
-            ready_state_loop(Params, State, GGTClients, LogFile);
-        %% TODO kann das hier passieren oder auch nur im initial Zustand?
-        toggle ->
-            New_Korrigieren = toggle_koordinator_handler(Korrigieren),
-            ready_state_loop(Params, [New_Korrigieren], GGTClients, LogFile);
-        %% TODO kann das hier passieren oder auch nur im initial Zustand?
-        toggle_ggt ->
-            toggle_ggt_handler(GGTClients),
+            [Mi | _Tail] = Mis,
+            From ! {sendy, Mi},
             ready_state_loop(Params, State, GGTClients, LogFile);
         {From, briefterm, {Clientname, CMi, CZeit}} ->
             if Korrigieren and SmallestKnownNumber < CMi ->
@@ -141,8 +130,27 @@ ready_state_loop(Params,
             ready_state_loop(Params, State, GGTClients, LogFile)
     end.
 
-get_random_ggts(_, _) ->
-    todo.
+get_random_ggts(GGTClients, _LogFile) ->
+    Count = length(GGTClients) * 0.2,
+    GGTs = get_n_ggts(Count, GGTClients),
+    case length(GGTs) of
+        0 ->
+            [lists_nth(rand:uniform(length(GGTClients)), GGTClients),
+             lists_nth(rand:uniform(length(GGTClients)), GGTClients)
+             | GGTs];
+        1 ->
+            [lists_nth(rand:uniform(length(GGTClients)), GGTClients) | GGTs];
+        _ ->
+            GGTs
+    end.
+
+get_n_ggts(N, [GGT | Tail]) ->
+    get_n_ggts(N - 1, Tail, [GGT]).
+
+get_n_ggts(0, _GGTClients, Out) ->
+    Out;
+get_n_ggts(N, [GGT | Tail], Out) ->
+    get_n_ggts(N - 1, Tail, [GGT | Out]).
 
 send_mis([], [], LogFile) ->
     logging(LogFile,
@@ -211,15 +219,6 @@ kill_ggt_handler(GGTClients, LogFile) ->
             end,
             GGTClients),
     ok.
-
-calc_handler() ->
-    %% TODO
-    receive
-        {getinit, PID} ->
-            todo;
-        _ ->
-            todo
-    end.
 
 toggle_koordinator_handler(yes_correct) ->
     no_correct;
