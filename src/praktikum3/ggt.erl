@@ -18,8 +18,12 @@ start(Delay, TermZeit, GGTNum, StarterNum, Gruppe, Team, NameService, Koordinato
         ok_overwrite ->
             logging(LogFile, format("~s: Erneut beim Namensdienst registriert.~n", [Time]));
         ok_new ->
-            Time = now2string(erlang:timestamp()),
-            logging(LogFile, format("~s: Erfolgreich beim Namensdienst registriert.~n", [Time]))
+            logging(
+                LogFile,
+                format("~s: Erfolgreich beim Namensdienst registriert.~n", [
+                    now2string(erlang:timestamp())
+                ])
+            )
     end,
     % 3
     Koordinator ! {hello, GGTName},
@@ -35,9 +39,100 @@ start(Delay, TermZeit, GGTNum, StarterNum, Gruppe, Team, NameService, Koordinato
                 ),
                 {LeftN, RightN}
         end,
-    loop(
+    loop_initial(
         [Delay, TermZeit, GGTName, NameService, Koordinator, Neighbors, LogFile], Korrigieren, 0, 0
     ).
+
+loop_initial(
+    Constants = [_Delay, _TermZeit, GGTName, NameService, Koordinator, _Neighbors, LogFile],
+    Korrigieren,
+    AnzahlTerm,
+    Mi
+) ->
+    receive
+        % 5
+        {setpm, MiNeu} ->
+            Time = now2string(erlang:timestamp()),
+            logging(LogFile, format("~s: {setpm, ~B} erhalten.~n", [Time, MiNeu])),
+            loop(Constants, Korrigieren, AnzahlTerm, MiNeu);
+        % 6
+        {calc, start} ->
+            Koordinator ! {getinit, self()},
+            Time = now2string(erlang:timestamp()),
+            logging(
+                LogFile,
+                format(
+                    "~s: {calc, start} erhalten und initialen Wert beim Koordinator angefragt.~n", [
+                        Time
+                    ]
+                )
+            ),
+            loop(Constants, Korrigieren, AnzahlTerm, Mi);
+        % 10a
+        {_From, toggle} ->
+            Toggled =
+                if
+                    Korrigieren ->
+                        false;
+                    true ->
+                        true
+                end,
+            Time = now2string(erlang:timestamp()),
+            logging(
+                LogFile,
+                format("~s: toggle-Befehl erhalten. Neuer Wert des Flags: ~s~n", [Time, Toggled])
+            ),
+            loop(Constants, Toggled, AnzahlTerm, Mi);
+        % 10b
+        {From, tellmi} ->
+            From ! {mi, Mi},
+            Time = now2string(erlang:timestamp()),
+            logging(
+                LogFile,
+                format(
+                    "~s: tellmi-Befehl erhalten. Anfragender Prozess ueber aktuelles Mi informiert.~n",
+                    [Time]
+                )
+            ),
+            loop(Constants, Korrigieren, AnzahlTerm, Mi);
+        % 10c
+        {From, pingGGT} ->
+            From ! {pongGGT, GGTName},
+            Time = now2string(erlang:timestamp()),
+            logging(
+                LogFile,
+                format(
+                    "~s: pingGGT-Befehl erhalten. pongGGT an den anfragenden Prozess gesendet.~n",
+                    [Time]
+                )
+            ),
+            loop(Constants, Korrigieren, AnzahlTerm, Mi);
+        % 11b
+        {From, {vote, Initiator, MiIn}} ->
+            Time = now2string(erlang:timestamp()),
+            logging(
+                LogFile, format("~s: Terminierungsanfrage von ~s erhalten:~n", [Time, Initiator])
+            ),
+            doVote(Mi, MiIn, GGTName, Initiator, From, Korrigieren, LogFile),
+            loop(Constants, Korrigieren, AnzahlTerm, Mi);
+        % 13
+        kill ->
+            NameService ! {self(), {unbind, GGTName}},
+            receive
+                ok ->
+                    Time = now2string(erlang:timestamp()),
+                    logging(LogFile, format("~s: Prozess erfolgreich terminiert!~n", [Time]))
+            after 7000 ->
+                Time = now2string(erlang:timestamp()),
+                logging(
+                    LogFile,
+                    format(
+                        "~s: Es konnte sich nicht beim Namensdienst abgemeldet werden. Prozess wird trotzdem beendet.~n",
+                        [Time]
+                    )
+                )
+            end
+    end.
 
 loop(
     Constants = [Delay, TermZeit, GGTName, NameService, Koordinator, _Neighbors, LogFile],
@@ -144,6 +239,7 @@ loop(
 
 % 7 & 8
 handleSendy(Mi, Y, Delay, GGTName, Koordinator, NameService, LogFile) ->
+    logging(LogFile, format("Mi: ~B | Y: ~B~n", [Mi, Y])),
     % 7 & 8
     Return =
         if
@@ -294,7 +390,7 @@ handleTermination(
                             AnzahlTermNeu
                         ])
                     ),
-                    loop(Constants, Korrigieren, AnzahlTermNeu, Mi)
+                    loop_initial(Constants, Korrigieren, AnzahlTermNeu, Mi)
             end
     end.
 

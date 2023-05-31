@@ -37,7 +37,10 @@ start(StarterNum) ->
             Koordinator ! {self(), getsteeringval},
             receive
                 {steeringval, {AZMin, AZMax}, TermZeit, Anzahl} ->
-                    startLoop(Anzahl, {AZMin, AZMax}, TermZeit, StarterNum, Gruppe, Team, NameService, Koordinator, LogFile, Anzahl)
+                    startLoop(Anzahl, {AZMin, AZMax}, TermZeit, StarterNum, Gruppe, Team, NameService, Koordinator, LogFile, Anzahl);
+                Any -> io:write(Any)
+            after 3000 ->
+                io:fwrite("keine Antwort erhalten~n")
             end
     end.
 

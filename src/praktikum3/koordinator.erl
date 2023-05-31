@@ -62,6 +62,7 @@ initial_state_loop(Params =
             ready_state_loop(Params, State, GGTClients, LogFile);
         {From, getsteeringval} ->
             %% AZMin, AZMax = simulierte Verzögerungszeit zur Berechnung in Sekunden
+            io:format("getsteeringval-nachricht erhalten~n"),
             %% TermZeit = Wartezeit in Sekunden, bis eine Wahl für eine Terminierung initiiert wird
             %% GGTProzessanzahl = Anzahl zu startender ggT-Prozesse
             From ! Msg = {steeringval, {AZMin, AZMax}, TermZeit, GGTProzessanzahl},
@@ -78,10 +79,10 @@ initial_state_loop(Params =
             initial_state_loop(Params, [New_Korrigieren], GGTClients, LogFile);
         toggle_ggt ->
             toggle_ggt_handler(GGTClients),
-            initial_state_loop(Params, State, GGTClients, LogFile);
-        Any ->
-            manual_interface(Any, Params, State, GGTClients, LogFile),
             initial_state_loop(Params, State, GGTClients, LogFile)
+        % Any ->
+        %     manual_interface(Any, Params, State, GGTClients, LogFile),
+        %     initial_state_loop(Params, State, GGTClients, LogFile)
     end,
     ok.
 
