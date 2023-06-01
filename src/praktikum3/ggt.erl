@@ -53,8 +53,6 @@ start(Delay, TermZeit, GGTNum, StarterNum, Gruppe, Team,
 loop_initial(Constants = [_Delay, _TermZeit, GGTName,
 			  NameService, Koordinator, _Neighbors, LogFile],
 	     Korrigieren, AnzahlTerm, Mi) ->
-    logging(LogFile,
-	    format("ggt is in loop_initial~n", [])),
     receive
       % 5
       {setpm, MiNeu} ->
