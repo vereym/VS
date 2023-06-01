@@ -29,27 +29,25 @@ start(Delay, TermZeit, GGTNum, StarterNum, Gruppe, Team, NameService, Koordinato
     Koordinator ! {hello, GGTName},
     Time2 = now2string(erlang:timestamp()),
     logging(LogFile, format("~s: hello an den Koordinator gesendet.~n", [Time2])),
-    % 4
-    Neighbors =
-        receive
-            {setneighbors, LeftN, RightN} ->
-                Time3 = now2string(erlang:timestamp()),
-                logging(
-                    LogFile, format("~s: Nachbarn vom Koordinator erhalten und gesetzt.~n", [Time3])
-                ),
-                {LeftN, RightN}
-        end,
     loop_initial(
-        [Delay, TermZeit, GGTName, NameService, Koordinator, Neighbors, LogFile], Korrigieren, 0, 0
+        [Delay, TermZeit, GGTName, NameService, Koordinator, {none, none}, LogFile], Korrigieren, 0, 0
     ).
 
 loop_initial(
-    Constants = [_Delay, _TermZeit, GGTName, NameService, Koordinator, _Neighbors, LogFile],
+    Constants = [Delay, TermZeit, GGTName, NameService, Koordinator, _Neighbors, LogFile],
     Korrigieren,
     AnzahlTerm,
     Mi
 ) ->
+    logging(LogFile, format("ggt is in loop_initial~n", [])),
     receive
+        % 4
+        {setneighbors, LeftN, RightN} ->
+            Time3 = now2string(erlang:timestamp()),
+                logging(
+                    LogFile, format("~s: Nachbarn vom Koordinator erhalten und gesetzt.~n", [Time3])
+                ),
+            loop_initial([Delay, TermZeit, GGTName, NameService, Koordinator, {LeftN, RightN}, LogFile], Korrigieren, AnzahlTerm, Mi);
         % 5
         {setpm, MiNeu} ->
             Time = now2string(erlang:timestamp()),
