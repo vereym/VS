@@ -234,18 +234,22 @@ manual_interface(Command, Params, State, GGTClients, LogFile) ->
                        Client ! {self(), tellmi},
                        receive
                            {mi, Mi} -> logging(LogFile, format("~s hat Mi = ~p.~n", [Clientname, Mi]))
+                           after 5000 ->
+                               logging(LogFile, format("prompt: keine Antwort von ~s erhalten.~n", [Clientname]))
                        end
                     end,
                     GGTClients);
         nudge ->
             io:format("GGTClients in nudge: ~p~n",[GGTClients]),
-            foreach(fun([_, Client, _]) ->
+            foreach(fun([Clientname, Client, _]) ->
                        Client ! {self(), pingGGT},
                        receive
                            {pongGGT, GGTname} ->
                                logging(LogFile,
                                        format("GGTname=~s ist noch am Leben.~n",
                                               [GGTname]))
+                                            after 5000 ->
+                               logging(LogFile, format("nudge: keine Antwort von ~s erhalten.~n", [Clientname]))
                        end
                     end,
                     %% after 30 ->
