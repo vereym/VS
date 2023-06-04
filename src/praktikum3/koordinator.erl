@@ -120,10 +120,11 @@ initial_state_loop(
         %% 9.d.
         toggle ->
             New_Korrigieren = toggle_koordinator_handler(Korrigieren, LogFile),
-            initial_state_loop(Params, [New_Korrigieren], GGTClients, LogFile);
+            initial_state_loop(Params, {New_Korrigieren, SmallestKnownNumber, Mis, StarterCount}, GGTClients, LogFile);
         %% 9.e.
         toggle_ggt ->
-            toggle_ggt_handler(GGTClients, LogFile);
+            toggle_ggt_handler(GGTClients, LogFile),
+            initial_state_loop(Params, State, GGTClients, LogFile);
         Any ->
             manual_interface(Any, Params, State, GGTClients, LogFile),
             initial_state_loop(Params, State, GGTClients, LogFile)
@@ -235,10 +236,11 @@ ready_state_loop(
         %% 9.d.
         toggle ->
             New_Korrigieren = toggle_koordinator_handler(Korrigieren, LogFile),
-            initial_state_loop(Params, [New_Korrigieren], GGTClients, LogFile);
+            ready_state_loop(Params, {New_Korrigieren, SmallestKnownNumber, Mis, StarterCount}, GGTClients, LogFile);
         %% 9.e.
         toggle_ggt ->
-            toggle_ggt_handler(GGTClients, LogFile);
+            toggle_ggt_handler(GGTClients, LogFile),
+            ready_state_loop(Params, State, GGTClients, LogFile);
         Any ->
             manual_interface(Any, Params, State, GGTClients, LogFile),
             ready_state_loop(Params, State, GGTClients, LogFile)

@@ -72,7 +72,8 @@ msg(Command) ->
             Koordinator ! kill;
         _ ->
             io:fwrite("unknown command, try help instead.")
-    end.
+    end,
+    ok.
 
 nameservice_lookup(NameService, Service) ->
     NameService ! {self(), {lookup, Service}},
