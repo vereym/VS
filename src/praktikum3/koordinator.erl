@@ -197,6 +197,13 @@ ready_state_loop(Params,
                     format("~s: ~s mit ~p hat Terminierung mit Mi=~p um ~s gemeldet.~n",
                            [?stime, Clientname, From, CMi, now2string(CZeit)])),
             ready_state_loop(Params, State, GGTClients, LogFile);
+        %% 9.d.
+        toggle ->
+            New_Korrigieren = toggle_koordinator_handler(Korrigieren, LogFile),
+            initial_state_loop(Params, [New_Korrigieren], GGTClients, LogFile);
+        %% 9.e.
+        toggle_ggt ->
+            toggle_ggt_handler(GGTClients, LogFile);
         Any ->
             manual_interface(Any, Params, State, GGTClients, LogFile),
             ready_state_loop(Params, State, GGTClients, LogFile)
