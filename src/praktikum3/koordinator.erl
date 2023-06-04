@@ -259,7 +259,7 @@ exit_state_loop(_Params = {_, _, _, NameService, KoordinatorName},
          LogFile :: string().
 manual_interface(Command,
                  Params,
-                 State = {Korrigieren, _SmallestKnownNumber, _Mis, _StarterCount},
+                 State = {_Korrigieren, _SmallestKnownNumber, _Mis, _StarterCount},
                  GGTClients,
                  LogFile) ->
     case Command of
