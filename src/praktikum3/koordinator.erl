@@ -301,7 +301,7 @@ exit_state_loop(
 manual_interface(
     Command,
     Params,
-    State = {_Korrigieren, _SmallestKnownNumber, _Mis, _StarterCount},
+    State = {Korrigieren, _SmallestKnownNumber, _Mis, _StarterCount},
     GGTClients,
     LogFile
 ) ->
@@ -309,7 +309,7 @@ manual_interface(
         %% 9.a.
         reset ->
             kill_ggt_handler(GGTClients, LogFile),
-            initial_state_loop(Params, State, GGTClients, LogFile);
+            initial_state_loop(Params, {Korrigieren, infinity, [], 0}, [], LogFile);
         ggt ->
             lists_nth(rand:uniform(length(GGTClients)), GGTClients);
         %% 9.b.
