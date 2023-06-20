@@ -9,6 +9,7 @@
 -export([syncVT/2]).
 -export([tickVT/1]).
 -export([compVT/2]).
+-export([aftereqVTJ/2]).
 
 -include_lib("eunit/include/eunit.hrl").
 
@@ -132,17 +133,40 @@ zip_vt_test() ->
     TestList2 = [1, 9, 3, 9, 5, 6, 7],
     Outcome = [1, 9, 3, 9, 5, 10, 7],
     ?assertEqual(Outcome, zip_vt(TestList, TestList2)),
-    todo.
+    ok.
 
 syncVT_test() ->
-    todo.
+    TestVecC = {7, [1, 2, 3, 4, 5, 10, 7]},
+    TestVecC2 = {10, [1, 9, 3, 9, 5, 6, 7, 0, 2, 21]},
+    Outcome = {7, [1, 9, 3, 9, 5, 10, 7, 0, 2, 21]},
+    ?assertEqual(Outcome, syncVT(TestVecC, TestVecC2)),
+    ok.
 
 %% (14.)
-extendVector(_, _) ->
-    todo.
+extendVector(Vec, Vec2) ->
+    Diff = length(Vec) - length(Vec2),
+    if Diff > 0 ->
+           {Vec, Vec2 ++ extendVector_inner(Diff)};
+       Diff < 0 ->
+           {Vec ++ extendVector_inner(abs(Diff)), Vec2};
+       Diff =:= 0 ->
+           {Vec, Vec2}
+    end.
+
+extendVector_inner(1) ->
+    [0];
+extendVector_inner(Counter) ->
+    [0 | extendVector_inner(Counter - 1)].
 
 extendVector_test() ->
-    todo.
+    TestList = [1, 2, 3, 4],
+    TestList2 = [1, 2, 3, 4, 5, 6, 7],
+
+    {Out, _} = extendVector(TestList, TestList2),
+    ?assertEqual(length(TestList2), length(Out)),
+    ?assertEqual({[1, 2, 3, 4, 0, 0, 0], TestList2}, extendVector(TestList, TestList2)),
+    ?assertEqual({TestList, TestList}, extendVector(TestList, TestList)),
+    ok.
 
 tickVT({ID, Vec}) ->
     %%  ^ 11.1
@@ -170,13 +194,36 @@ compVT({_, Vec}, {_, Vec2}) ->
     %% 12.3
     compareVector(Vektor1Ext, Vektor2Ext).
 
-%% (13.)
-aftereqVTJ(VT, VTR) ->
-    todo.
+%% @doc (13.) Vergleicht zwei Vektorzeitstempel im Sinne des kausalen Multicasts.
+%% @param VT eigener Vektorzeitstempel
+%% @param VTR Vektorzeitstempel einer erhaltenen Nachricht
+aftereqVTJ(_VT = {_, Vektor1}, _VTR = {JD, Vektor2}) ->
+    {DistVT, VecRest} = lists_take_nth(JD, Vektor1),
+    {DistVTR, VecRestR} = lists_take_nth(JD, Vektor2),
+    {Vektor1Ext, Vektor2Ext} = extendVector(VecRest, VecRestR),
+    case compareVector(Vektor1Ext, Vektor2Ext) of
+        beforeVT ->
+            false;
+        concurrentVT ->
+            false;
+        _ ->
+            {aftereqVTJ, DistVT - DistVTR}
+    end.
+
+aftereqVTJ_test() ->
+    TestVecC = {1, [0, 0]},
+    TestVecC2 = {2, [0, 1]},
+
+    ?assertEqual(false, aftereqVTJ({1, [1, 1]}, {2, [8, 1]})),
+    ?assertEqual({aftereqVTJ, 0}, aftereqVTJ(TestVecC2, TestVecC)),
+    ok.
 
 %% Hilfsfunktionen %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %% 15.
+-spec compareVector(Vec, Vec2) -> beforeVT | equalVT | afterVT
+    when Vec :: vectorTimestamp(),
+         Vec2 :: vectorTimestamp().
 compareVector([Elem | Tail], [Elem2 | Tail2]) ->
     case compareElem(Elem, Elem2) of
         beforeVT ->
@@ -191,7 +238,8 @@ compareVector([Elem | Tail], [Elem2 | Tail2]) ->
 compareVectorLast([], [], Last) ->
     Last;
 compareVectorLast([Elem | Tail], [Elem2 | Tail2], Last) ->
-    case compareElem(Elem, Elem2) == Last of
+    NewComp = compareElem(Elem, Elem2),
+    case (NewComp == Last) or (NewComp == equalVT) of
         true ->
             compareVectorLast(Tail, Tail2, Last);
         false ->
@@ -199,28 +247,33 @@ compareVectorLast([Elem | Tail], [Elem2 | Tail2], Last) ->
     end.
 
 compareElem(Elem, Elem2) ->
-    if Elem =< Elem2 ->
+    if Elem < Elem2 ->
            beforeVT;
        Elem =:= Elem2 ->
            equalVT;
-       Elem >= Elem2 ->
+       Elem > Elem2 ->
            afterVT
     end.
+
+compareElem_test() ->
+    ?assertEqual(beforeVT, compareElem(1, 4)),
+    ?assertEqual(equalVT, compareElem(1, 1)),
+    ?assertEqual(afterVT, compareElem(9, 1)),
+    ok.
 
 compareVector_test() ->
     TestList = [1, 2, 3, 4, 5, 6, 7],
     TestList2 = [1, 2, 3, 4, 5, 6, 7],
     ?assertEqual(equalVT, compareVector(TestList, TestList2)),
-    todo.
+    ok.
 
 %% util %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% generelle Hilfsfunktionen (nicht im Entwurf dokumentiert)
 
 -spec lists_nth(N, List) -> Elem
     when N :: pos_integer(),
-         List :: [T, ...],
-         Elem :: T | [],
-         T :: term().
+         List :: list(),
+         Elem :: term() | [].
 lists_nth(_Num, []) ->
     [];
 lists_nth(1, [H | _]) ->
@@ -248,4 +301,22 @@ lists_reverse_test() ->
     Outcome = [7, 6, 5, 4, 3, 2, 1],
     ?assertEqual(Outcome, lists_reverse(TestList)),
     ?assertEqual([], lists_reverse([])),
-    todo.
+    ok.
+
+%% @doc takes the nth element in a list and returns the element and
+%%      a new list without the element.
+-spec lists_take_nth(Position, List) -> {Elem, NewList}
+    when Position :: pos_integer(),
+         List :: list(),
+         NewList :: list(),
+         Elem :: term() | [].
+lists_take_nth(1, [Elem | Tail]) ->
+    {Elem, Tail};
+lists_take_nth(Position, [E | T]) ->
+    {Elem, Tail} = lists_take_nth(Position - 1, T),
+    {Elem, [E | Tail]}.
+
+lists_take_test() ->
+    ?assertEqual({3, [1, 2, 4, 5, 6, 7]}, lists_take_nth(3, [1, 2, 3, 4, 5, 6, 7])),
+    ?assertEqual({1, []}, lists_take_nth(1, [1])),
+    ok.
