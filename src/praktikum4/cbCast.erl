@@ -136,18 +136,30 @@ loop(MyVT = {VecID, Vektor}, DLQ, HBQ, TowerCBC, LogFile) ->
 
 % 18
 initHBQ() ->
+    % 18.1
     [].
 
 % 19
-addToHBQ(HBQ, {Message, MessageVT}) ->
-    pass.
+addToHBQ([], {Message, MessageVT}) ->
+    % 19.1
+    [{Message, MessageVT}];
+addToHBQ([H | T], {Message, MessageVT}) ->
+    % 19.2
+    [H | addToHBQ(T, {Message, MessageVT})].
 
 % 20
 checkDeliverable(VT, MessageVT) ->
-    pass.
+    % 20.1 
+    Return = vectorC:aftereqVTJ(VT, MessageVT),
+    if
+        % 20.2
+        Return == {aftereqVTJ, -1} -> true;
+        % 20.3
+        true -> false
+    end.
 
 % 21
-moveDeliverable(HBQ, DLQ, VT) ->
+moveDeliverable(HBQ, DLQ, _VT) ->
     pass.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -156,12 +168,21 @@ moveDeliverable(HBQ, DLQ, VT) ->
 
 % 22
 initDLQ() ->
+    % 22.1
     [].
 
 % 23
-addToDLQ(DLQ, {Message, MessageVT}) ->
-    pass.
+addToDLQ([], {Message, MessageVT}) ->
+    % 23.1
+    [{Message, MessageVT}];
+addToDLQ([H | T], {Message, MessageVT}) ->
+    % 23.2
+    [H | addToDLQ(T, {Message, MessageVT})].
 
 % 24
-getMessage(DLQ) ->
-    pass.
+getMessage([]) ->
+    % 24.1
+    null;
+getMessage([{Message, MessageVT} | _T]) ->
+    % 24.2
+    {Message, MessageVT}.
