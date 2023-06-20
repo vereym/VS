@@ -8,6 +8,7 @@
 -export([isVT/1]).
 -export([syncVT/2]).
 -export([tickVT/1]).
+-export([compVT/2]).
 
 -include_lib("eunit/include/eunit.hrl").
 
@@ -20,7 +21,7 @@
 
 initVT() ->
     {ok, HostName} = inet:gethostname(),
-    LogFile = format("vectorC@~s.log", [HostName]),
+    LogFile = format("VectorC@~s.log", [HostName]),
 
     %% 4.1 Auslesen von servername und servernode aus der Konfigureationsdatei
     TowerClockConfig =
@@ -116,7 +117,21 @@ syncVT({ID, Vec1}, {_, Vec2}) ->
     %% 10.5, 10.6
     {ID, VectorNeu}.
 
-zip_vt(_, _) ->
+zip_vt(Vec, Vec2) ->
+    lists_reverse(zip_vt_internal(Vec, Vec2, [])).
+
+zip_vt_internal([], [], Acc) ->
+    Acc;
+zip_vt_internal([H | Tail], [H2 | Tail2], Acc) when H >= H2 ->
+    zip_vt_internal(Tail, Tail2, [H | Acc]);
+zip_vt_internal([H | Tail], [H2 | Tail2], Acc) when H < H2 ->
+    zip_vt_internal(Tail, Tail2, [H2 | Acc]).
+
+zip_vt_test() ->
+    TestList = [1, 2, 3, 4, 5, 10, 7],
+    TestList2 = [1, 9, 3, 9, 5, 6, 7],
+    Outcome = [1, 9, 3, 9, 5, 10, 7],
+    ?assertEqual(Outcome, zip_vt(TestList, TestList2)),
     todo.
 
 syncVT_test() ->
@@ -148,13 +163,55 @@ tickVT_internal_test() ->
     ok.
 
 %% (12.)
-compVT(VT1, VT2) -> todo.
+compVT({_, Vec}, {_, Vec2}) ->
+    %%       ^ 12.1
+    %% 12.2
+    {Vektor1Ext, Vektor2Ext} = extendVector(Vec, Vec2),
+    %% 12.3
+    compareVector(Vektor1Ext, Vektor2Ext).
 
 %% (13.)
-aftereqVTJ(VT, VTR) -> todo.
+aftereqVTJ(VT, VTR) ->
+    todo.
 
-%% (15.)
-compareVector(Vector, Vector2) -> todo.
+%% Hilfsfunktionen %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+%% 15.
+compareVector([Elem | Tail], [Elem2 | Tail2]) ->
+    case compareElem(Elem, Elem2) of
+        beforeVT ->
+            compareVectorLast(Tail, Tail2, beforeVT);
+        equalVT ->
+            compareVectorLast(Tail, Tail2, equalVT);
+        afterVT ->
+            compareVectorLast(Tail, Tail2, afterVT)
+    end.
+
+%% Last :: beforeVT|equalVT|afterVT
+compareVectorLast([], [], Last) ->
+    Last;
+compareVectorLast([Elem | Tail], [Elem2 | Tail2], Last) ->
+    case compareElem(Elem, Elem2) == Last of
+        true ->
+            compareVectorLast(Tail, Tail2, Last);
+        false ->
+            concurrentVT
+    end.
+
+compareElem(Elem, Elem2) ->
+    if Elem =< Elem2 ->
+           beforeVT;
+       Elem =:= Elem2 ->
+           equalVT;
+       Elem >= Elem2 ->
+           afterVT
+    end.
+
+compareVector_test() ->
+    TestList = [1, 2, 3, 4, 5, 6, 7],
+    TestList2 = [1, 2, 3, 4, 5, 6, 7],
+    ?assertEqual(equalVT, compareVector(TestList, TestList2)),
+    todo.
 
 %% util %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% generelle Hilfsfunktionen (nicht im Entwurf dokumentiert)
@@ -176,3 +233,19 @@ lists_nth_test() ->
     ?assertEqual(3, lists_nth(3, TestList)),
     ?assertEqual(1, lists_nth(1, [1])),
     ok.
+
+%% @doc reverses a list.
+lists_reverse(List) ->
+    lists_reverse(List, []).
+
+lists_reverse([], Accu) ->
+    Accu;
+lists_reverse([Elem | Tail], Accu) ->
+    lists_reverse(Tail, [Elem | Accu]).
+
+lists_reverse_test() ->
+    TestList = [1, 2, 3, 4, 5, 6, 7],
+    Outcome = [7, 6, 5, 4, 3, 2, 1],
+    ?assertEqual(Outcome, lists_reverse(TestList)),
+    ?assertEqual([], lists_reverse([])),
+    todo.
