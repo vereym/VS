@@ -15,6 +15,10 @@
 
 -define(DELAY, 3000).
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Schnittstellen für den Anwender
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 init() ->
     spawn(fun start/0).
 
@@ -48,9 +52,9 @@ received(CommPID) ->
         nok
     end.
 
--spec read(CommPID) -> Message | null
-    when CommPID :: pid(),
-         Message :: string().
+-spec read(CommPID) -> Message | null when
+    CommPID :: pid(),
+    Message :: string().
 read(CommPID) ->
     CommPID ! {self(), read},
     receive
@@ -61,7 +65,103 @@ read(CommPID) ->
         nok
     end.
 
-%% Hilfsfunktionen %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Hilfsfunktionen
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+% 11
 start() ->
-    todo.
+    % 11.1
+    {ok, CBCconfig} = file:consult("towerCBC.cfg"),
+    {ok, Name} = get_config_value(servername, CBCconfig),
+    {ok, Node} = get_config_value(servernode, CBCconfig),
+    TowerCBC = {Name, Node},
+    % 11.2
+    {VecID, Vektor} = vectorC:initVT(),
+
+    {ok, HostName} = inet:gethostname(),
+    LogFile = format("cbCast~B@~s.log", [VecID, HostName]),
+
+    % 11.3
+    TowerCBC ! {self(), {register, VecID}},
+    % 11.4
+    receive
+        {replycbc, ok_registered} ->
+            logging(
+                LogFile,
+                format("~s: Erfolgreich beim TowerCBC registriert!", [
+                    now2string(erlang:timestamp())
+                ])
+            );
+        {replycbc, ok_existing} ->
+            logging(
+                LogFile,
+                format("~s: Kommunikationseinheit war bereits registriert.", [
+                    now2string(erlang:timestamp())
+                ])
+            )
+    after 5000 ->
+        logging(
+            LogFile,
+            format("~s: Registrierung nicht erfolgreich. Keine Antwort von TowerCBC erhalten.", [
+                now2string(erlang:timestamp())
+            ])
+        )
+    end,
+    % 11.5
+    HBQ = initHBQ(),
+    DLQ = initDLQ(),
+    % 11.6
+    loop({VecID, Vektor}, DLQ, HBQ, TowerCBC, LogFile).
+
+% 12
+loop(MyVT = {VecID, Vektor}, DLQ, HBQ, TowerCBC, LogFile) ->
+    % 12.1 & 12.2
+    receive
+        % 13
+        {PID, {castMessage, {Message, MessageVT}}} -> pass;
+        % 14
+        {From, stop} -> pass;
+        % 15
+        {From, {send, Message}} -> pass;
+        % 16
+        {From, received} -> pass;
+        % 17
+        {From, read} -> pass
+    end.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Schnitstellen der HBQ
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% 18
+initHBQ() ->
+    [].
+
+% 19
+addToHBQ(HBQ, {Message, MessageVT}) ->
+    pass.
+
+% 20
+checkDeliverable(VT, MessageVT) ->
+    pass.
+
+% 21
+moveDeliverable(HBQ, DLQ, VT) ->
+    pass.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+% Schnitstellen der DLQ
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+% 22
+initDLQ() ->
+    [].
+
+% 23
+addToDLQ(DLQ, {Message, MessageVT}) ->
+    pass.
+
+% 24
+getMessage(DLQ) ->
+    pass.
