@@ -152,12 +152,20 @@ loop(MyVT, DLQ, HBQ, TowerCBC, LogFile) ->
             loop(NewVT, NewDLQ, HBQ, TowerCBC, LogFile);
         % 16
         {From, received} ->
-            Msg = getMessage(DLQ),
-            if Msg == null ->
-                   received_loop()
-            end
-
-            loop(MyVT, DLQ, HBQ, TowerCBC, LogFile);
+            % 16.1
+            Return = getMessage(DLQ),
+            % 16.2 & 16.3
+            {{Message, MessageVT}, NewHBQ} = if Return == null ->
+                   received_loop(HBQ, MyVT);
+                true -> {Return, HBQ}
+            end,
+            % 16.4
+            From ! {ok, Message},
+            % 16.5
+            NewVT = vectorC:syncVT(MyVT, MessageVT),
+            % 16.6
+            {NewerHBQ, NewDLQ} = moveDeliverable(NewHBQ, DLQ, MyVT),
+            loop(NewVT, NewDLQ, NewerHBQ, TowerCBC, LogFile);
         % 17
         {From, read} ->
             % 17.1
@@ -172,36 +180,16 @@ loop(MyVT, DLQ, HBQ, TowerCBC, LogFile) ->
             end
     end.
 
-received_loop() ->
+received_loop(HBQ, VT) ->
     receive
-        {PID, {castMessage, {Message, MessageVT}}} ->
-            % 13.1
-            IsDeliverable = checkDeliverable(MyVT, MessageVT),
+        {_PID, {castMessage, {Message, MessageVT}}} ->
+            IsDeliverable = checkDeliverable(VT, MessageVT),
             if
-                % 13.2
-                IsDeliverable ->
-                    NewDLQ = addToDLQ(DLQ, {Message, MessageVT}),
-                    loop(MyVT, NewDLQ, HBQ, TowerCBC, LogFile);
-                % 13.3
-                true ->
-                    NewHBQ = addToHBQ(HBQ, {Message, MessageVT}),
-                    loop(MyVT, DLQ, NewHBQ, TowerCBC, LogFile)
-            end;
-        % 14
-        {From, stop} ->
-            % 14.2
-            From ! ok
-        % 14.1 -> kein loop-Call
-    after 10000 ->
-        logging(
-            LogFile,
-            format("~s: did not receive message from ~p", [
-                now2string(erlang:timestamp()), HandleFrom
-            ])
-        ),
-        {MyVT, DLQ, HBQ, TowerCBC, LogFile}
-    end,
-    ok.
+                IsDeliverable -> {{Message, MessageVT}, HBQ};
+                true -> received_loop(addToHBQ(HBQ, {Message, MessageVT}), VT)
+                    
+            end
+    end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Schnittstellen der HBQ
