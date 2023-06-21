@@ -2,5 +2,18 @@
 %% -*- mode: erlang;erlang-indent-level: 4;indent-tabs-mode: nil -*-
 %% ex: ft=erlang ts=4 sw=4 et
 
-main(Args) ->
+main(_Args) ->
+	io:fwrite(os:cmd("rebar3 compile")),
+
+    BuildPath = "_build/default/lib/rebar_lib/src/praktikum4/",
+	Cookie = "zummsel",
+	Nodes = [{towerClock, "\"towerClock:init().\""},
+             %% {towerCBC, "\"towerCBC:init(auto).\""},
+             {cbCast, "\"cbCast:init(auto).\""}],
+
+	lists:foreach(fun({Node, Eval}) -> start(Node, Cookie, Eval, BuildPath) end, Nodes),
 	todo.
+
+start(Node, Cookie, Eval, BuildPath) ->
+	Cmd = io_lib:format("erl -sname ~s -setcookie ~s -eval ~s -detached -pa ~s", [Node, Cookie, Eval, BuildPath]),
+	io:fwrite(os:cmd(Cmd)).
