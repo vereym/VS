@@ -124,17 +124,19 @@ loop(MyVT, DLQ, HBQ, TowerCBC, LogFile) ->
             IsDeliverable = checkDeliverable(MyVT, MessageVT),
             if
                 % 13.2
-                IsDeliverable -> NewDLQ = addToDLQ(DLQ, {Message, MessageVT}),
-                loop(MyVT, NewDLQ, HBQ, TowerCBC, LogFile);
+                IsDeliverable ->
+                    NewDLQ = addToDLQ(DLQ, {Message, MessageVT}),
+                    loop(MyVT, NewDLQ, HBQ, TowerCBC, LogFile);
                 % 13.3
-                true -> NewHBQ = addToHBQ(HBQ, {Message, MessageVT}),
-                loop(MyVT, DLQ, NewHBQ, TowerCBC, LogFile)
+                true ->
+                    NewHBQ = addToHBQ(HBQ, {Message, MessageVT}),
+                    loop(MyVT, DLQ, NewHBQ, TowerCBC, LogFile)
             end;
         % 14
         {From, stop} ->
             % 14.2
             From ! ok;
-            % 14.1 -> kein loop-Call
+        % 14.1 -> kein loop-Call
         % 15
         {From, {send, Message}} ->
             % 15.1
@@ -177,18 +179,29 @@ received_loop() ->
             IsDeliverable = checkDeliverable(MyVT, MessageVT),
             if
                 % 13.2
-                IsDeliverable -> NewDLQ = addToDLQ(DLQ, {Message, MessageVT}),
-                loop(MyVT, NewDLQ, HBQ, TowerCBC, LogFile);
+                IsDeliverable ->
+                    NewDLQ = addToDLQ(DLQ, {Message, MessageVT}),
+                    loop(MyVT, NewDLQ, HBQ, TowerCBC, LogFile);
                 % 13.3
-                true -> NewHBQ = addToHBQ(HBQ, {Message, MessageVT}),
-                loop(MyVT, DLQ, NewHBQ, TowerCBC, LogFile)
+                true ->
+                    NewHBQ = addToHBQ(HBQ, {Message, MessageVT}),
+                    loop(MyVT, DLQ, NewHBQ, TowerCBC, LogFile)
             end;
         % 14
         {From, stop} ->
             % 14.2
-            From ! ok;
-            % 14.1 -> kein loop-Call
-    end
+            From ! ok
+        % 14.1 -> kein loop-Call
+    after 10000 ->
+        logging(
+            LogFile,
+            format("~s: did not receive message from ~p", [
+                now2string(erlang:timestamp()), HandleFrom
+            ])
+        ),
+        {MyVT, DLQ, HBQ, TowerCBC, LogFile}
+    end,
+    ok.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Schnittstellen der HBQ

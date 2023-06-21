@@ -30,7 +30,7 @@ initVT() ->
             {ok, File} ->
                 File;
             {error, Reason} ->
-                io:format("~nProblem mit towerClock.cfg: ~s~n", [Reason]),
+                logging(LogFile, format("~nProblem mit towerClock.cfg: ~s~n", [Reason])),
                 exit(bad_config)
         end,
     {ok, ServerName} = get_config_value(servername, TowerClockConfig),
@@ -144,15 +144,21 @@ syncVT_test() ->
 
 %% (14.)
 extendVector(Vec, Vec2) ->
+    %% 14.1
     Diff = length(Vec) - length(Vec2),
+    %% 14.2
     if Diff > 0 ->
+            %% 14.4
            {Vec, Vec2 ++ extendVector_inner(Diff)};
        Diff < 0 ->
+            %% 14.4
            {Vec ++ extendVector_inner(abs(Diff)), Vec2};
        Diff =:= 0 ->
+            %% 14.4
            {Vec, Vec2}
     end.
 
+%% 14.3
 extendVector_inner(1) ->
     [0];
 extendVector_inner(Counter) ->
@@ -198,14 +204,20 @@ compVT({_, Vec}, {_, Vec2}) ->
 %% @param VT eigener Vektorzeitstempel
 %% @param VTR Vektorzeitstempel einer erhaltenen Nachricht
 aftereqVTJ(_VT = {_, Vektor1}, _VTR = {JD, Vektor2}) ->
+    %%                                 ^ 13.1
+    %% 13.2
     {DistVT, VecRest} = lists_take_nth(JD, Vektor1),
     {DistVTR, VecRestR} = lists_take_nth(JD, Vektor2),
+    %% 13.3
     {Vektor1Ext, Vektor2Ext} = extendVector(VecRest, VecRestR),
+    %% 13.4
     case compareVector(Vektor1Ext, Vektor2Ext) of
+        %% 13.5
         beforeVT ->
             false;
         concurrentVT ->
             false;
+        %% 13.6
         _ ->
             {aftereqVTJ, DistVT - DistVTR}
     end.
@@ -221,10 +233,11 @@ aftereqVTJ_test() ->
 %% Hilfsfunktionen %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %% 15.
--spec compareVector(Vec, Vec2) -> beforeVT | equalVT | afterVT
+-spec compareVector(Vec, Vec2) -> beforeVT | equalVT | afterVT | concurrentVT
     when Vec :: vectorTimestamp(),
          Vec2 :: vectorTimestamp().
 compareVector([Elem | Tail], [Elem2 | Tail2]) ->
+    %% 15.1
     case compareElem(Elem, Elem2) of
         beforeVT ->
             compareVectorLast(Tail, Tail2, beforeVT);
@@ -242,6 +255,7 @@ compareVectorLast([Elem | Tail], [Elem2 | Tail2], Last) ->
     case (NewComp == Last) or (NewComp == equalVT) of
         true ->
             compareVectorLast(Tail, Tail2, Last);
+        %% 15.2
         false ->
             concurrentVT
     end.
