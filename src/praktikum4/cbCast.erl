@@ -132,17 +132,60 @@ loop(MyVT = {VecID, Vektor}, DLQ, HBQ, TowerCBC, LogFile) ->
             end;
         % 14
         {From, stop} ->
-            pass;
+            % 14.2
+            From ! ok;
+            % 14.1 -> kein loop-Call
         % 15
         {From, {send, Message}} ->
-            pass;
+            % 15.1
+            NewVT = vectorC:tickVT(MyVT),
+            % 15.2
+            Msg = {Message, NewVT},
+            % 15.3
+            NewDLQ = addToDLQ(DLQ, Msg),
+            % 15.4
+            TowerCBC ! {self(), {multicastNB, Msg}},
+            % 15.5
+            From ! ok,
+            loop(NewVT, NewDLQ, HBQ, TowerCBC, LogFile);
         % 16
         {From, received} ->
-            pass;
+            {MyVTNew, DLQNew, HBQNew, TowerCBCNew, LogFileNew} = handle_received({MyVT, DLQ, HBQ, TowerCBC, LogFile}, From),
+            loop(MyVT, DLQ, HBQ, TowerCBC, LogFile);
         % 17
         {From, read} ->
-            pass
+            % 17.1
+            Msg = getMessage(DLQ),
+            if
+                % 17.2
+                Msg == null -> From ! null;
+                % 17.3 & 17.4
+                true -> {Message, _MessageVT} = Msg,
+                From ! {ok, Message}
+            end
     end.
+
+handle_received(Context = {MyVT, DLQ, HBQ, TowerCBC, LogFile}, From) ->
+    Msg = getMessage(DLQ),
+    receive
+        {PID, {castMessage, {Message, MessageVT}}} ->
+            % 13.1
+            IsDeliverable = checkDeliverable(MyVT, MessageVT),
+            if
+                % 13.2
+                IsDeliverable -> NewDLQ = addToDLQ(DLQ, {Message, MessageVT}),
+                loop(MyVT, NewDLQ, HBQ, TowerCBC, LogFile);
+                % 13.3
+                true -> NewHBQ = addToHBQ(HBQ, {Message, MessageVT}),
+                loop(MyVT, DLQ, NewHBQ, TowerCBC, LogFile)
+            end;
+        % 14
+        {From, stop} ->
+            % 14.2
+            From ! ok;
+            % 14.1 -> kein loop-Call
+    end
+    ok.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Schnittstellen der HBQ
