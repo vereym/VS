@@ -36,40 +36,30 @@ initVT() ->
     {ok, ServerName} = get_config_value(servername, TowerClockConfig),
     {ok, ServerNode} = get_config_value(servernode, TowerClockConfig),
 
+    logging(LogFile, format("Servername=~s ServerNode=~s~n", [ServerName, ServerNode])),
     %% 4.2 Kontaktaufbau zur towerClock
-    {ok, TowerClockPID} =
+    VID =
         case net_adm:ping(ServerNode) of
             pang ->
-                ErrReason = format("towerClock konnte nicht gefunden werden~n", []),
+                ErrReason = format("towerClockNode konnte nicht gefunden werden~n", []),
                 logging(LogFile, ErrReason),
                 {error, ErrReason};
             pong ->
                 {ServerName, ServerNode} ! {getVecID, self()},
                 receive
-                    Anwser ->
-                        {ok, Anwser}
+                    {vt, VTID} ->
+                        VTID
                 after ?DELAY ->
-                    TimeOutErr = format("keine Antwort von towerClock erhalten"),
+                    TimeOutErr = format("keine Antwort von towerClock erhalten~n"),
                     logging(LogFile, TimeOutErr),
                     {error, TimeOutErr}
                 end
         end,
-    register(ServerName, TowerClockPID),
 
-    %% 4.3
-    TowerClockPID ! {getVecID, self()},
-    VecPID =
-        receive
-            {vt, ProzessID} ->
-                ProzessID
-        after ?DELAY ->
-            TimeOutPID = format("keine Antwort von towerClock erhalten"),
-            logging(LogFile, TimeOutPID),
-            {error, TimeOutPID}
-        end,
-    %% TODO muss das hier wirklich die länge von VecPID haben?
-    %% 4.4 & 4.5
-    {VecPID, []}.
+    %% 4.3, 4.4, 4.5
+    Vector = {VID, extendVector_inner(VID)},
+    logging(LogFile, format("Vector=~p~n", [Vector])),
+    Vector.
 
 %% @doc ermittelt die eindeutige ID der Kommunikationseinheit
 myVTid({ID, _List}) ->
@@ -147,15 +137,16 @@ extendVector(Vec, Vec2) ->
     %% 14.1
     Diff = length(Vec) - length(Vec2),
     %% 14.2
-    if Diff > 0 ->
+    if
+        Diff > 0 ->
             %% 14.4
-           {Vec, Vec2 ++ extendVector_inner(Diff)};
-       Diff < 0 ->
+            {Vec, Vec2 ++ extendVector_inner(Diff)};
+        Diff < 0 ->
             %% 14.4
-           {Vec ++ extendVector_inner(abs(Diff)), Vec2};
-       Diff =:= 0 ->
+            {Vec ++ extendVector_inner(abs(Diff)), Vec2};
+        Diff =:= 0 ->
             %% 14.4
-           {Vec, Vec2}
+            {Vec, Vec2}
     end.
 
 %% 14.3
@@ -233,9 +224,9 @@ aftereqVTJ_test() ->
 %% Hilfsfunktionen %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 %% 15.
--spec compareVector(Vec, Vec2) -> beforeVT | equalVT | afterVT | concurrentVT
-    when Vec :: vectorTimestamp(),
-         Vec2 :: vectorTimestamp().
+-spec compareVector(Vec, Vec2) -> beforeVT | equalVT | afterVT | concurrentVT when
+    Vec :: vectorTimestamp(),
+    Vec2 :: vectorTimestamp().
 compareVector([Elem | Tail], [Elem2 | Tail2]) ->
     %% 15.1
     case compareElem(Elem, Elem2) of
@@ -261,12 +252,13 @@ compareVectorLast([Elem | Tail], [Elem2 | Tail2], Last) ->
     end.
 
 compareElem(Elem, Elem2) ->
-    if Elem < Elem2 ->
-           beforeVT;
-       Elem =:= Elem2 ->
-           equalVT;
-       Elem > Elem2 ->
-           afterVT
+    if
+        Elem < Elem2 ->
+            beforeVT;
+        Elem =:= Elem2 ->
+            equalVT;
+        Elem > Elem2 ->
+            afterVT
     end.
 
 compareElem_test() ->
@@ -284,10 +276,10 @@ compareVector_test() ->
 %% util %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% generelle Hilfsfunktionen (nicht im Entwurf dokumentiert)
 
--spec lists_nth(N, List) -> Elem
-    when N :: pos_integer(),
-         List :: list(),
-         Elem :: term() | [].
+-spec lists_nth(N, List) -> Elem when
+    N :: pos_integer(),
+    List :: list(),
+    Elem :: term() | [].
 lists_nth(_Num, []) ->
     [];
 lists_nth(1, [H | _]) ->
@@ -319,11 +311,13 @@ lists_reverse_test() ->
 
 %% @doc takes the nth element in a list and returns the element and
 %%      a new list without the element.
--spec lists_take_nth(Position, List) -> {Elem, NewList}
-    when Position :: pos_integer(),
-         List :: list(),
-         NewList :: list(),
-         Elem :: term() | [].
+-spec lists_take_nth(Position, List) -> {Elem, NewList} when
+    Position :: pos_integer(),
+    List :: list(),
+    NewList :: list(),
+    Elem :: term() | [].
+lists_take_nth(1, []) ->
+    {1, []};
 lists_take_nth(1, [Elem | Tail]) ->
     {Elem, Tail};
 lists_take_nth(Position, [E | T]) ->
@@ -333,4 +327,5 @@ lists_take_nth(Position, [E | T]) ->
 lists_take_test() ->
     ?assertEqual({3, [1, 2, 4, 5, 6, 7]}, lists_take_nth(3, [1, 2, 3, 4, 5, 6, 7])),
     ?assertEqual({1, []}, lists_take_nth(1, [1])),
+    ?assertEqual({1, []}, lists_take_nth(1, [])),
     ok.

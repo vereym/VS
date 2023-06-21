@@ -5,11 +5,11 @@
 main(_Args) ->
 	io:fwrite(os:cmd("rebar3 compile")),
 
-    BuildPath = "_build/default/lib/rebar_lib/src/praktikum4/",
+    BuildPath = "_build/default/lib/rebar_lib/ebin/",
 	Cookie = "zummsel",
 	Nodes = [{towerClock, "\"towerClock:init().\""},
-             %% {towerCBC, "\"towerCBC:init(auto).\""},
-             {cbCast, "\"cbCast:init(auto).\""}],
+             {towerCBC, "\"towerCBC:init(auto).\""},
+             {cbCast, "\"cbCast:init().\""}],
 
 	lists:foreach(fun({Node, Eval}) -> start(Node, Cookie, Eval, BuildPath) end, Nodes),
 	todo.

@@ -14,6 +14,7 @@
 -import(io, [format/1]).
 
 -define(DELAY, 3000).
+-define(LogFile, "cbcast_interface.log").
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Schnittstellen für den Anwender
@@ -28,7 +29,7 @@ stop(CommPID) ->
         ok ->
             done
     after ?DELAY ->
-        io:format("keine Antwort von Kommunikationseinheit erhalten"),
+        logging(?LogFile, format("stop: keine Antwort von Kommunikationseinheit erhalten~n", [])),
         nok
     end.
 
@@ -38,7 +39,7 @@ send(CommPID, Message) ->
         ok ->
             ok
     after ?DELAY ->
-        io:format("keine Antwort von Kommunikationseinheit erhalten"),
+        logging(?LogFile, format("send: keine Antwort von Kommunikationseinheit erhalten~n", [])),
         nok
     end.
 
@@ -46,9 +47,10 @@ received(CommPID) ->
     CommPID ! {self(), received},
     receive
         {ok, Message} ->
+            logging(?LogFile, format("received: Nachricht=~p bekommen~n", [Message])),
             Message
     after ?DELAY ->
-        io:format("keine Antwort von Kommunikationseinheit erhalten"),
+        logging(?LogFile, format("received: keine Antwort von Kommunikationseinheit erhalten~n", [])),
         nok
     end.
 
@@ -59,9 +61,10 @@ read(CommPID) ->
     CommPID ! {self(), read},
     receive
         {ok, Message} ->
+            logging(?LogFile, format("read: Nachricht=~p bekommen~n", [Message])),
             Message
     after ?DELAY ->
-        io:format("keine Antwort von Kommunikationseinheit erhalten"),
+        logging(?LogFile, format("read: keine Antwort von Kommunikationseinheit erhalten~n", [])),
         nok
     end.
 
@@ -83,7 +86,7 @@ start() ->
     LogFile = format("cbCast~B@~s.log", [VecID, HostName]),
 
     % 11.3
-    TowerCBC ! {self(), {register, VecID}},
+    TowerCBC ! {self(), {register, self()}},
     % 11.4
     receive
         {replycbc, ok_registered} ->
@@ -116,6 +119,7 @@ start() ->
 
 % 12
 loop(MyVT, DLQ, HBQ, TowerCBC, LogFile) ->
+    io:fwrite("in cbCast:loop~n"),
     % 12.1 & 12.2
     receive
         % 13
