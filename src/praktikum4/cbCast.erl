@@ -119,19 +119,33 @@ loop(MyVT = {VecID, Vektor}, DLQ, HBQ, TowerCBC, LogFile) ->
     % 12.1 & 12.2
     receive
         % 13
-        {PID, {castMessage, {Message, MessageVT}}} -> pass;
+        {PID, {castMessage, {Message, MessageVT}}} ->
+            % 13.1
+            IsDeliverable = checkDeliverable(MyVT, MessageVT),
+            if
+                % 13.2
+                IsDeliverable -> NewDLQ = addToDLQ(DLQ, {Message, MessageVT}),
+                loop(MyVT, NewDLQ, HBQ, TowerCBC, LogFile);
+                % 13.3
+                true -> NewHBQ = addToHBQ(HBQ, {Message, MessageVT}),
+                loop(MyVT, DLQ, NewHBQ, TowerCBC, LogFile)
+            end;
         % 14
-        {From, stop} -> pass;
+        {From, stop} ->
+            pass;
         % 15
-        {From, {send, Message}} -> pass;
+        {From, {send, Message}} ->
+            pass;
         % 16
-        {From, received} -> pass;
+        {From, received} ->
+            pass;
         % 17
-        {From, read} -> pass
+        {From, read} ->
+            pass
     end.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Schnitstellen der HBQ
+% Schnittstellen der HBQ
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % 18
@@ -149,7 +163,7 @@ addToHBQ([H | T], {Message, MessageVT}) ->
 
 % 20
 checkDeliverable(VT, MessageVT) ->
-    % 20.1 
+    % 20.1
     Return = vectorC:aftereqVTJ(VT, MessageVT),
     if
         % 20.2
@@ -159,11 +173,21 @@ checkDeliverable(VT, MessageVT) ->
     end.
 
 % 21
-moveDeliverable(HBQ, DLQ, _VT) ->
+moveDeliverable([], DLQ, _VT) ->
+    {[], DLQ};
+moveDeliverable([H = {_, MessageVT} | T], DLQ, VT) ->
+    {NewHBQ, NewDLQ} = moveDeliverable(T, DLQ, VT),
+    IsDeliverable = checkDeliverable(VT, MessageVT),
+    if
+        IsDeliverable -> {NewHBQ, addToDLQ(NewDLQ, H)};
+        true -> {[H | NewHBQ], NewDLQ}
+    end.
+
+moveDeliverable_test() ->
     pass.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Schnitstellen der DLQ
+% Schnittstellen der DLQ
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 % 22
