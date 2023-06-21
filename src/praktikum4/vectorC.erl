@@ -36,7 +36,6 @@ initVT() ->
     {ok, ServerName} = get_config_value(servername, TowerClockConfig),
     {ok, ServerNode} = get_config_value(servernode, TowerClockConfig),
 
-    logging(LogFile, format("Servername=~s ServerNode=~s~n", [ServerName, ServerNode])),
     %% 4.2 Kontaktaufbau zur towerClock
     VID =
         case net_adm:ping(ServerNode) of
@@ -57,9 +56,7 @@ initVT() ->
         end,
 
     %% 4.3, 4.4, 4.5
-    Vector = {VID, extendVector_inner(VID)},
-    logging(LogFile, format("Vector=~p~n", [Vector])),
-    Vector.
+    {VID, extendVector_inner(VID)}.
 
 %% @doc ermittelt die eindeutige ID der Kommunikationseinheit
 myVTid({ID, _List}) ->
@@ -316,8 +313,8 @@ lists_reverse_test() ->
     List :: list(),
     NewList :: list(),
     Elem :: term() | [].
-lists_take_nth(1, []) ->
-    {1, []};
+lists_take_nth(Num, []) ->
+    {Num, []};
 lists_take_nth(1, [Elem | Tail]) ->
     {Elem, Tail};
 lists_take_nth(Position, [E | T]) ->
