@@ -115,11 +115,11 @@ start() ->
     loop({VecID, Vektor}, DLQ, HBQ, TowerCBC, LogFile).
 
 % 12
-loop(MyVT = {VecID, Vektor}, DLQ, HBQ, TowerCBC, LogFile) ->
+loop(MyVT, DLQ, HBQ, TowerCBC, LogFile) ->
     % 12.1 & 12.2
     receive
         % 13
-        {PID, {castMessage, {Message, MessageVT}}} ->
+        {_PID, {castMessage, {Message, MessageVT}}} ->
             % 13.1
             IsDeliverable = checkDeliverable(MyVT, MessageVT),
             if
@@ -150,7 +150,11 @@ loop(MyVT = {VecID, Vektor}, DLQ, HBQ, TowerCBC, LogFile) ->
             loop(NewVT, NewDLQ, HBQ, TowerCBC, LogFile);
         % 16
         {From, received} ->
-            {MyVTNew, DLQNew, HBQNew, TowerCBCNew, LogFileNew} = handle_received({MyVT, DLQ, HBQ, TowerCBC, LogFile}, From),
+            Msg = getMessage(DLQ),
+            if Msg == null ->
+                   received_loop()
+            end
+
             loop(MyVT, DLQ, HBQ, TowerCBC, LogFile);
         % 17
         {From, read} ->
@@ -158,15 +162,15 @@ loop(MyVT = {VecID, Vektor}, DLQ, HBQ, TowerCBC, LogFile) ->
             Msg = getMessage(DLQ),
             if
                 % 17.2
-                Msg == null -> From ! null;
-                % 17.3 & 17.4
+                Msg == null -> From ! {ok, null};
+                % 17.3
                 true -> {Message, _MessageVT} = Msg,
+                % 17.4
                 From ! {ok, Message}
             end
     end.
 
-handle_received(Context = {MyVT, DLQ, HBQ, TowerCBC, LogFile}, From) ->
-    Msg = getMessage(DLQ),
+received_loop() ->
     receive
         {PID, {castMessage, {Message, MessageVT}}} ->
             % 13.1
@@ -185,7 +189,6 @@ handle_received(Context = {MyVT, DLQ, HBQ, TowerCBC, LogFile}, From) ->
             From ! ok;
             % 14.1 -> kein loop-Call
     end
-    ok.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Schnittstellen der HBQ
