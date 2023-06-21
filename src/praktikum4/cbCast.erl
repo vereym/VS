@@ -124,6 +124,7 @@ loop(MyVT, DLQ, HBQ, TowerCBC, LogFile) ->
     receive
         % 13
         {_PID, {castMessage, {Message, MessageVT}}} ->
+            %% FIXME warum könnten hier zweir leere Vektoren ankommen?
             % 13.1
             IsDeliverable = checkDeliverable(MyVT, MessageVT),
             if

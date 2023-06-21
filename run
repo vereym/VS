@@ -14,6 +14,10 @@ main(_Args) ->
 	lists:foreach(fun({Node, Eval}) -> start(Node, Cookie, Eval, BuildPath) end, Nodes),
 	todo.
 
+start(Node, Cookie, Eval) ->
+	Cmd = io_lib:format("erl -sname ~s -setcookie ~s -eval ~s -detached", [Node, Cookie, Eval]),
+	io:fwrite(os:cmd(Cmd)).
+
 start(Node, Cookie, Eval, BuildPath) ->
 	Cmd = io_lib:format("erl -sname ~s -setcookie ~s -eval ~s -detached -pa ~s", [Node, Cookie, Eval, BuildPath]),
 	io:fwrite(os:cmd(Cmd)).

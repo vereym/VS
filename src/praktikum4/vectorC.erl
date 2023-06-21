@@ -199,6 +199,8 @@ aftereqVTJ(_VT = {_, Vektor1}, _VTR = {JD, Vektor2}) ->
     %% 13.3
     {Vektor1Ext, Vektor2Ext} = extendVector(VecRest, VecRestR),
     %% 13.4
+    %% FIXME hier werden zwei leere Vektoren verglichen, aber was soll passieren, wenn wir
+    %%       zwei leere vektoren erhalten?
     case compareVector(Vektor1Ext, Vektor2Ext) of
         %% 13.5
         beforeVT ->
@@ -222,8 +224,8 @@ aftereqVTJ_test() ->
 
 %% 15.
 -spec compareVector(Vec, Vec2) -> beforeVT | equalVT | afterVT | concurrentVT when
-    Vec :: vectorTimestamp(),
-    Vec2 :: vectorTimestamp().
+    Vec :: [integer(), ...],
+    Vec2 :: [integer(), ...].
 compareVector([Elem | Tail], [Elem2 | Tail2]) ->
     %% 15.1
     case compareElem(Elem, Elem2) of
