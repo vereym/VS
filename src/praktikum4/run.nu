@@ -21,7 +21,7 @@ def setup [] {
   print "starting...\n"
   erl -make | print $in
   erl -sname towerClock -setcookie $cookie -detached -eval 'towerClock:init().'
-  erl -sname towerCBC -setcookie $cookie -detached -eval 'towerCBC:init(manu).'
+  # erl -sname towerCBC -setcookie $cookie -detached -eval 'towerCBC:init(manu).'
   startbots 
 }
 

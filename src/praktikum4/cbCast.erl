@@ -13,8 +13,9 @@
 -import(io_lib, [format/2]).
 -import(io, [format/1]).
 
--define(DELAY, 300000).
+-define(DELAY, 30000).
 -define(LogFile, "cbcast_interface.log").
+-define(TIME, now2string(erlang:timestamp())).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Schnittstellen für den Anwender
@@ -94,24 +95,14 @@ start() ->
     % 11.4
     receive
         {replycbc, ok_registered} ->
-            logging(
-                LogFile,
-                format("~s: Erfolgreich beim TowerCBC registriert!", [
-                    now2string(erlang:timestamp())
-                ])
-            );
+            logging(LogFile, format("~s: Erfolgreich beim TowerCBC registriert!", [?TIME]));
         {replycbc, ok_existing} ->
-            logging(
-                LogFile,
-                format("~s: Kommunikationseinheit war bereits registriert.", [
-                    now2string(erlang:timestamp())
-                ])
-            )
+            logging(LogFile, format("~s: Kommunikationseinheit war bereits registriert.", [?TIME]))
     after ?DELAY ->
         logging(
             LogFile,
             format("~s: Registrierung nicht erfolgreich. Keine Antwort von TowerCBC erhalten.", [
-                now2string(erlang:timestamp())
+                ?TIME
             ])
         )
     end,
@@ -123,7 +114,6 @@ start() ->
 
 % 12
 loop(MyVT, DLQ, HBQ, TowerCBC, LogFile) ->
-    io:fwrite("in cbCast:loop~n"),
     % 12.1 & 12.2
     receive
         % 13
@@ -142,7 +132,7 @@ loop(MyVT, DLQ, HBQ, TowerCBC, LogFile) ->
                     loop(MyVT, NewDLQ, HBQ, TowerCBC, LogFile);
                 % 13.3
                 true ->
-                    NewHBQ = addToHBQ(HBQ, {Message, MessageVT}),
+                    NewHBQ = addToHBQ(HBQ, {Message, MessageVT}, LogFile),
                     loop(MyVT, DLQ, NewHBQ, TowerCBC, LogFile)
             end;
         % 14
@@ -166,13 +156,14 @@ loop(MyVT, DLQ, HBQ, TowerCBC, LogFile) ->
             loop(NewVT, NewDLQ, HBQ, TowerCBC, LogFile);
         % 16
         {From, received} ->
+            logging(LogFile, format("~s: received von ~p erhalten~n", [?TIME, From])),
             % 16.1
             {Msg, NewDLQ} = getMessage(DLQ),
             % 16.2 & 16.3
             {{Message, MessageVT}, NewHBQ} =
                 if
                     Msg == null ->
-                        received_loop(HBQ, MyVT);
+                        received_loop(HBQ, MyVT, LogFile);
                     true ->
                         {Msg, HBQ}
                 end,
@@ -185,6 +176,7 @@ loop(MyVT, DLQ, HBQ, TowerCBC, LogFile) ->
             loop(NewVT, NewerDLQ, NewerHBQ, TowerCBC, LogFile);
         % 17
         {From, read} ->
+            logging(LogFile, format("~s: read von ~p erhalten~n", [?TIME, From])),
             % 17.1
             {Msg, NewDLQ} = getMessage(DLQ),
             if
@@ -200,13 +192,15 @@ loop(MyVT, DLQ, HBQ, TowerCBC, LogFile) ->
             loop(MyVT, NewDLQ, HBQ, TowerCBC, LogFile)
     end.
 
-received_loop(HBQ, VT) ->
+received_loop(HBQ, VT, LogFile) ->
     receive
         {_PID, {castMessage, {Message, MessageVT}}} ->
-            IsDeliverable = checkDeliverable(VT, MessageVT),
-            if
-                IsDeliverable -> {{Message, MessageVT}, HBQ};
-                true -> received_loop(addToHBQ(HBQ, {Message, MessageVT}), VT)
+            logging(
+                LogFile, format("~s: in received_loop Message=~p erhalten~n", [?TIME, Message])
+            ),
+            case checkDeliverable(VT, MessageVT) of
+                true -> {{Message, MessageVT}, HBQ};
+                false -> received_loop(addToHBQ(HBQ, {Message, MessageVT}, LogFile), VT, LogFile)
             end
     end.
 
@@ -222,8 +216,10 @@ initHBQ() ->
     [].
 
 % 19
--spec addToHBQ(hbq(), msg()) -> hbq().
-addToHBQ(HBQ, {Message, MessageVT}) ->
+-spec addToHBQ(hbq(), msg(), LogFile) -> hbq() when
+    LogFile :: string().
+addToHBQ(HBQ, {Message, MessageVT}, LogFile) ->
+    logging(LogFile, format("~s: fuege {~s, ~p} in HBQ ein~n", [?TIME, Message, MessageVT])),
     % 19.1, 19.2
     [{Message, MessageVT} | HBQ].
 
@@ -274,9 +270,9 @@ moveDeliverable_test() ->
     MyVT = {4, [0, 0, 0, 0]},
     HBQ = initHBQ(),
     DLQ = initDLQ(),
-    HBQ1 = addToHBQ(HBQ, {"test", VT1}),
-    HBQ2 = addToHBQ(HBQ1, {"test", VT2}),
-    HBQ3 = addToHBQ(HBQ2, {"test", VT3}),
+    HBQ1 = addToHBQ(HBQ, {"test", VT1}, ""),
+    HBQ2 = addToHBQ(HBQ1, {"test", VT2}, ""),
+    HBQ3 = addToHBQ(HBQ2, {"test", VT3}, ""),
     Outcome = {[{"test", VT3}], [{"test", VT1}, {"test", VT2}]},
     ?assertEqual(Outcome, moveDeliverable(HBQ3, DLQ, MyVT)),
     ok.
