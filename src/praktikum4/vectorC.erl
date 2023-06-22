@@ -10,6 +10,7 @@
 -export([tickVT/1]).
 -export([compVT/2]).
 -export([aftereqVTJ/2]).
+-export_type([vectorTimestamp/0]).
 
 -include_lib("eunit/include/eunit.hrl").
 

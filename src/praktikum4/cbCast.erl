@@ -50,7 +50,9 @@ received(CommPID) ->
             logging(?LogFile, format("received: Nachricht=~p bekommen~n", [Message])),
             Message
     after ?DELAY ->
-        logging(?LogFile, format("received: keine Antwort von Kommunikationseinheit erhalten~n", [])),
+        logging(
+            ?LogFile, format("received: keine Antwort von Kommunikationseinheit erhalten~n", [])
+        ),
         nok
     end.
 
@@ -157,7 +159,8 @@ loop(MyVT, DLQ, HBQ, TowerCBC, LogFile) ->
             % 15.3
             NewDLQ = addToDLQ(DLQ, Msg),
             % 15.4
-            TowerCBC ! {self(), {multicastNB, Msg}},
+            TowerCBC ! {self(), {multicastB, Msg}},
+            logging(LogFile, format("kommunikationseinheit: Msg=~p gesendet~n", [Msg])),
             % 15.5
             From ! ok,
             loop(NewVT, NewDLQ, HBQ, TowerCBC, LogFile);
@@ -166,10 +169,13 @@ loop(MyVT, DLQ, HBQ, TowerCBC, LogFile) ->
             % 16.1
             {Msg, NewDLQ} = getMessage(DLQ),
             % 16.2 & 16.3
-            {{Message, MessageVT}, NewHBQ} = if Msg == null ->
-                   received_loop(HBQ, MyVT);
-                true -> {Msg, HBQ}
-            end,
+            {{Message, MessageVT}, NewHBQ} =
+                if
+                    Msg == null ->
+                        received_loop(HBQ, MyVT);
+                    true ->
+                        {Msg, HBQ}
+                end,
             % 16.4
             From ! {ok, Message},
             % 16.5
@@ -183,11 +189,13 @@ loop(MyVT, DLQ, HBQ, TowerCBC, LogFile) ->
             {Msg, NewDLQ} = getMessage(DLQ),
             if
                 % 17.2
-                Msg == null -> From ! {ok, null};
+                Msg == null ->
+                    From ! {ok, null};
                 % 17.3
-                true -> {Message, _MessageVT} = Msg,
-                % 17.4
-                From ! {ok, Message}
+                true ->
+                    {Message, _MessageVT} = Msg,
+                    % 17.4
+                    From ! {ok, Message}
             end,
             loop(MyVT, NewDLQ, HBQ, TowerCBC, LogFile)
     end.
@@ -199,7 +207,6 @@ received_loop(HBQ, VT) ->
             if
                 IsDeliverable -> {{Message, MessageVT}, HBQ};
                 true -> received_loop(addToHBQ(HBQ, {Message, MessageVT}), VT)
-                    
             end
     end.
 
@@ -207,20 +214,23 @@ received_loop(HBQ, VT) ->
 % Schnittstellen der HBQ
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+-type hbq() :: [{string(), vectorC:vectorTimestamp()}, ...] | [].
+
 % 18
 initHBQ() ->
     % 18.1
     [].
 
 % 19
-addToHBQ([], {Message, MessageVT}) ->
-    % 19.1
-    [{Message, MessageVT}];
-addToHBQ([H | T], {Message, MessageVT}) ->
-    % 19.2
-    [H | addToHBQ(T, {Message, MessageVT})].
+-spec addToHBQ(hbq(), msg()) -> hbq().
+addToHBQ(HBQ, {Message, MessageVT}) ->
+    % 19.1, 19.2
+    [{Message, MessageVT} | HBQ].
 
 % 20
+-spec checkDeliverable(VT, MessageVT) -> true | false when
+    VT :: vectorC:vectorTimestamp(),
+    MessageVT :: vectorC:vectorTimestamp().
 checkDeliverable(VT, MessageVT) ->
     % 20.1
     Return = vectorC:aftereqVTJ(VT, MessageVT),
@@ -231,9 +241,24 @@ checkDeliverable(VT, MessageVT) ->
         true -> false
     end.
 
+checkDeliverable_test() ->
+    VT2 = {2, [0, 1]},
+    VT3 = {3, [1, 0, 0]},
+    MyVT = {4, [0, 0, 0, 0]},
+    ?assertEqual(true, checkDeliverable(MyVT, VT2)),
+    ?assertEqual(false, checkDeliverable(MyVT, VT3)),
+    ok.
+
 % 21
+-spec moveDeliverable(HBQ, DLQ, VT) -> {NewHBQ, NewDLQ} when
+    HBQ :: hbq(),
+    DLQ :: dlq(),
+    VT :: vectorC:vectorTimestamp(),
+    NewHBQ :: hbq(),
+    NewDLQ :: dlq().
 moveDeliverable([], DLQ, _VT) ->
     {[], DLQ};
+%% [Neu Alt Aelter]
 moveDeliverable([H = {_, MessageVT} | T], DLQ, VT) ->
     {NewHBQ, NewDLQ} = moveDeliverable(T, DLQ, VT),
     IsDeliverable = checkDeliverable(VT, MessageVT),
@@ -243,11 +268,24 @@ moveDeliverable([H = {_, MessageVT} | T], DLQ, VT) ->
     end.
 
 moveDeliverable_test() ->
-    pass.
+    VT1 = {1, [1]},
+    VT2 = {2, [0, 1]},
+    VT3 = {3, [1, 0, 0]},
+    MyVT = {4, [0, 0, 0, 0]},
+    HBQ = initHBQ(),
+    DLQ = initDLQ(),
+    HBQ1 = addToHBQ(HBQ, {"test", VT1}),
+    HBQ2 = addToHBQ(HBQ1, {"test", VT2}),
+    HBQ3 = addToHBQ(HBQ2, {"test", VT3}),
+    Outcome = {[{"test", VT3}], [{"test", VT1}, {"test", VT2}]},
+    ?assertEqual(Outcome, moveDeliverable(HBQ3, DLQ, MyVT)),
+    ok.
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Schnittstellen der DLQ
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+-type dlq() :: [{string(), vectorC:vectorTimestamp()}, ...] | [].
 
 % 22
 initDLQ() ->
@@ -255,6 +293,7 @@ initDLQ() ->
     [].
 
 % 23
+-spec addToDLQ(dlq(), msg()) -> dlq().
 addToDLQ([], {Message, MessageVT}) ->
     % 23.1
     [{Message, MessageVT}];
@@ -263,9 +302,12 @@ addToDLQ([H | T], {Message, MessageVT}) ->
     [H | addToDLQ(T, {Message, MessageVT})].
 
 % 24
+-spec getMessage(dlq()) -> {null, dlq()} | {msg(), dlq()}.
 getMessage([]) ->
     % 24.1
     {null, []};
 getMessage([{Message, MessageVT} | T]) ->
     % 24.2
     {{Message, MessageVT}, T}.
+
+-type msg() :: {string(), vectorC:vectorTimestamp()}.
