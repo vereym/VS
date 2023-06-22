@@ -21,7 +21,7 @@ def setup [] {
   print "starting...\n"
   erl -make | print $in
   erl -sname towerClock -setcookie $cookie -detached -eval 'towerClock:init().'
-  erl -sname towerCBC -setcookie $cookie -detached -eval 'towerCBC:init(auto).'
+  erl -sname towerCBC -setcookie $cookie -detached -eval 'towerCBC:init(manu).'
   startbots 
 }
 
@@ -33,7 +33,7 @@ def kill [] {
 }
 
 export def copy_klauck [] {
-  let filepath = ("/home/antoni/studiums-repos/VS/src/praktikum4/von_klauck/" | path expand)
+  let filepath = ("/home/antoni/studium-repos/VS/src/praktikum4/" | path expand --strict)
   print $"filepath: ($filepath)"
 
   let klauck = [testCBC.beam towerCBC.beam towerClock.beam]
@@ -42,10 +42,14 @@ export def copy_klauck [] {
 
   let our = [cbCast.beam]
 
-  let all_files = ($klauck | append $config | $append util | $append our)
+  let all_files = ($klauck | append $config | append $util | append $our)
+
+  let all_files = ($all_files | each {|file|
+    $filepath | path join $file
+  })
 
   $all_files | each {|file|
-    $filepath | path join $file
+    cp $file ($filepath | path join von_klauck/)
   }
 
 }
