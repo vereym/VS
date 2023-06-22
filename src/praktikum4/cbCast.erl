@@ -159,7 +159,7 @@ loop(MyVT, DLQ, HBQ, TowerCBC, LogFile) ->
             % 15.3
             NewDLQ = addToDLQ(DLQ, Msg),
             % 15.4
-            TowerCBC ! {self(), {multicastB, Msg}},
+            TowerCBC ! {self(), {multicastNB, Msg}},
             logging(LogFile, format("kommunikationseinheit: Msg=~p gesendet~n", [Msg])),
             % 15.5
             From ! ok,
