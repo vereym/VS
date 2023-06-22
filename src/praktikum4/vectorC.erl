@@ -42,7 +42,8 @@ initVT() ->
             pang ->
                 ErrReason = format("towerClockNode konnte nicht gefunden werden~n", []),
                 logging(LogFile, ErrReason),
-                {error, ErrReason};
+                %% {error, ErrReason},
+                exit(list_to_atom(ErrReason));
             pong ->
                 {ServerName, ServerNode} ! {getVecID, self()},
                 receive
@@ -56,7 +57,7 @@ initVT() ->
         end,
 
     %% 4.3, 4.4, 4.5
-    {VID, extendVector_inner(VID)}.
+    {VID, createVectorZero(VID)}.
 
 %% @doc ermittelt die eindeutige ID der Kommunikationseinheit
 myVTid({ID, _List}) ->
@@ -137,20 +138,26 @@ extendVector(Vec, Vec2) ->
     if
         Diff > 0 ->
             %% 14.4
-            {Vec, Vec2 ++ extendVector_inner(Diff)};
+            {Vec, Vec2 ++ createVectorZero(Diff)};
         Diff < 0 ->
             %% 14.4
-            {Vec ++ extendVector_inner(abs(Diff)), Vec2};
+            {Vec ++ createVectorZero(abs(Diff)), Vec2};
         Diff =:= 0 ->
             %% 14.4
             {Vec, Vec2}
     end.
 
 %% 14.3
-extendVector_inner(1) ->
+-spec createVectorZero(Num) -> [0, ...] when Num :: pos_integer().
+createVectorZero(1) ->
     [0];
-extendVector_inner(Counter) ->
-    [0 | extendVector_inner(Counter - 1)].
+createVectorZero(Counter) when Counter > 1 ->
+    [0 | createVectorZero(Counter - 1)].
+
+createVectorZero_test() ->
+    ?assertEqual([0], createVectorZero(1)),
+    ?assertEqual([0, 0], createVectorZero(2)),
+    ok.
 
 extendVector_test() ->
     TestList = [1, 2, 3, 4],
@@ -191,6 +198,8 @@ compVT({_, Vec}, {_, Vec2}) ->
 %% @doc (13.) Vergleicht zwei Vektorzeitstempel im Sinne des kausalen Multicasts.
 %% @param VT eigener Vektorzeitstempel
 %% @param VTR Vektorzeitstempel einer erhaltenen Nachricht
+aftereqVTJ(_VT = {JD, _}, _VTR = {JD, _}) ->
+    {aftereq, 0};
 aftereqVTJ(_VT = {_, Vektor1}, _VTR = {JD, Vektor2}) ->
     %%                                 ^ 13.1
     %% 13.2

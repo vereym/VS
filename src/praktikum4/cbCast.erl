@@ -13,7 +13,7 @@
 -import(io_lib, [format/2]).
 -import(io, [format/1]).
 
--define(DELAY, 3000).
+-define(DELAY, 300000).
 -define(LogFile, "cbcast_interface.log").
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -75,12 +75,14 @@ read(CommPID) ->
 % 11
 start() ->
     % 11.1
+    logging("com_einheit_test.log", format("kommunikationseinheit in start~n")),
     {ok, CBCconfig} = file:consult("towerCBC.cfg"),
     {ok, Name} = get_config_value(servername, CBCconfig),
     {ok, Node} = get_config_value(servernode, CBCconfig),
     TowerCBC = {Name, Node},
     % 11.2
-    {VecID, Vektor} = vectorC:initVT(),
+    VT = vectorC:initVT(),
+    VecID = vectorC:myVTid(VT),
 
     {ok, HostName} = inet:gethostname(),
     LogFile = format("cbCast~B@~s.log", [VecID, HostName]),
@@ -103,7 +105,7 @@ start() ->
                     now2string(erlang:timestamp())
                 ])
             )
-    after 5000 ->
+    after ?DELAY ->
         logging(
             LogFile,
             format("~s: Registrierung nicht erfolgreich. Keine Antwort von TowerCBC erhalten.", [
@@ -115,7 +117,7 @@ start() ->
     HBQ = initHBQ(),
     DLQ = initDLQ(),
     % 11.6
-    loop({VecID, Vektor}, DLQ, HBQ, TowerCBC, LogFile).
+    loop(VT, DLQ, HBQ, TowerCBC, LogFile).
 
 % 12
 loop(MyVT, DLQ, HBQ, TowerCBC, LogFile) ->
@@ -124,10 +126,14 @@ loop(MyVT, DLQ, HBQ, TowerCBC, LogFile) ->
     receive
         % 13
         {_PID, {castMessage, {Message, MessageVT}}} ->
-            %% FIXME warum könnten hier zweir leere Vektoren ankommen?
+            MessageVTID = vectorC:myVTid(MessageVT),
+            MyVTID = vectorC:myVTid(MyVT),
             % 13.1
             IsDeliverable = checkDeliverable(MyVT, MessageVT),
             if
+                %% eigene Nachricht ignorieren
+                MessageVTID == MyVTID ->
+                    loop(MyVT, DLQ, HBQ, TowerCBC, LogFile);
                 % 13.2
                 IsDeliverable ->
                     NewDLQ = addToDLQ(DLQ, {Message, MessageVT}),
@@ -158,23 +164,23 @@ loop(MyVT, DLQ, HBQ, TowerCBC, LogFile) ->
         % 16
         {From, received} ->
             % 16.1
-            Return = getMessage(DLQ),
+            {Msg, NewDLQ} = getMessage(DLQ),
             % 16.2 & 16.3
-            {{Message, MessageVT}, NewHBQ} = if Return == null ->
+            {{Message, MessageVT}, NewHBQ} = if Msg == null ->
                    received_loop(HBQ, MyVT);
-                true -> {Return, HBQ}
+                true -> {Msg, HBQ}
             end,
             % 16.4
             From ! {ok, Message},
             % 16.5
             NewVT = vectorC:syncVT(MyVT, MessageVT),
             % 16.6
-            {NewerHBQ, NewDLQ} = moveDeliverable(NewHBQ, DLQ, MyVT),
-            loop(NewVT, NewDLQ, NewerHBQ, TowerCBC, LogFile);
+            {NewerHBQ, NewerDLQ} = moveDeliverable(NewHBQ, NewDLQ, MyVT),
+            loop(NewVT, NewerDLQ, NewerHBQ, TowerCBC, LogFile);
         % 17
         {From, read} ->
             % 17.1
-            Msg = getMessage(DLQ),
+            {Msg, NewDLQ} = getMessage(DLQ),
             if
                 % 17.2
                 Msg == null -> From ! {ok, null};
@@ -182,7 +188,8 @@ loop(MyVT, DLQ, HBQ, TowerCBC, LogFile) ->
                 true -> {Message, _MessageVT} = Msg,
                 % 17.4
                 From ! {ok, Message}
-            end
+            end,
+            loop(MyVT, NewDLQ, HBQ, TowerCBC, LogFile)
     end.
 
 received_loop(HBQ, VT) ->
@@ -258,7 +265,7 @@ addToDLQ([H | T], {Message, MessageVT}) ->
 % 24
 getMessage([]) ->
     % 24.1
-    null;
-getMessage([{Message, MessageVT} | _T]) ->
+    {null, []};
+getMessage([{Message, MessageVT} | T]) ->
     % 24.2
-    {Message, MessageVT}.
+    {{Message, MessageVT}, T}.
