@@ -30,7 +30,7 @@ stop(CommPID) ->
         ok ->
             done
     after ?DELAY ->
-        logging(?LogFile, format("stop: keine Antwort von Kommunikationseinheit erhalten~n", [])),
+        logging(?LogFile, format("~sstop: keine Antwort von Kommunikationseinheit erhalten~n", [?TIME])),
         nok
     end.
 
@@ -40,7 +40,7 @@ send(CommPID, Message) ->
         ok ->
             ok
     after ?DELAY ->
-        logging(?LogFile, format("send: keine Antwort von Kommunikationseinheit erhalten~n", [])),
+        logging(?LogFile, format("~ssend: keine Antwort von Kommunikationseinheit erhalten~n", [?TIME])),
         nok
     end.
 
@@ -48,11 +48,11 @@ received(CommPID) ->
     CommPID ! {self(), received},
     receive
         {ok, Message} ->
-            logging(?LogFile, format("received: Nachricht=~p bekommen~n", [Message])),
+            logging(?LogFile, format("~sreceived: Nachricht=~p bekommen~n", [?TIME, Message])),
             Message
     after ?DELAY ->
         logging(
-            ?LogFile, format("received: keine Antwort von Kommunikationseinheit erhalten~n", [])
+            ?LogFile, format("~sreceived: keine Antwort von Kommunikationseinheit erhalten~n", [?TIME])
         ),
         nok
     end.
@@ -64,10 +64,10 @@ read(CommPID) ->
     CommPID ! {self(), read},
     receive
         {ok, Message} ->
-            logging(?LogFile, format("read: Nachricht=~p bekommen~n", [Message])),
+            logging(?LogFile, format("~sread: Nachricht=~p bekommen~n", [?TIME, Message])),
             Message
     after ?DELAY ->
-        logging(?LogFile, format("read: keine Antwort von Kommunikationseinheit erhalten~n", [])),
+        logging(?LogFile, format("~sread: keine Antwort von Kommunikationseinheit erhalten~n", [?TIME])),
         nok
     end.
 
@@ -172,7 +172,7 @@ loop(MyVT, DLQ, HBQ, TowerCBC, LogFile) ->
             % 16.5
             NewVT = vectorC:syncVT(MyVT, MessageVT),
             % 16.6
-            {NewerHBQ, NewerDLQ} = moveDeliverable(NewHBQ, NewDLQ, MyVT),
+            {NewerHBQ, NewerDLQ} = moveDeliverable(NewHBQ, NewDLQ, NewVT),
             loop(NewVT, NewerDLQ, NewerHBQ, TowerCBC, LogFile);
         % 17
         {From, read} ->
@@ -182,14 +182,19 @@ loop(MyVT, DLQ, HBQ, TowerCBC, LogFile) ->
             if
                 % 17.2
                 Msg == null ->
-                    From ! {ok, null};
+                    From ! {ok, null},
+                    loop(MyVT, DLQ, HBQ, TowerCBC, LogFile);
                 % 17.3
                 true ->
-                    {Message, _MessageVT} = Msg,
+                    {Message, MessageVT} = Msg,
                     % 17.4
-                    From ! {ok, Message}
-            end,
-            loop(MyVT, NewDLQ, HBQ, TowerCBC, LogFile)
+                    From ! {ok, Message},
+                    % 17.5
+                    NewVT = vectorC:syncVT(MyVT, MessageVT),
+                    % 17.6
+                    {NewHBQ, NewerDLQ} = moveDeliverable(HBQ, NewDLQ, NewVT),
+                    loop(MyVT, NewerDLQ, NewHBQ, TowerCBC, LogFile)
+            end
     end.
 
 received_loop(HBQ, VT, LogFile) ->
@@ -208,7 +213,7 @@ received_loop(HBQ, VT, LogFile) ->
 % Schnittstellen der HBQ
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
--type hbq() :: [{string(), vectorC:vectorTimestamp()}, ...] | [].
+-type hbq() :: [msg()].
 
 % 18
 initHBQ() ->
@@ -281,7 +286,7 @@ moveDeliverable_test() ->
 % Schnittstellen der DLQ
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
--type dlq() :: [{string(), vectorC:vectorTimestamp()}, ...] | [].
+-type dlq() :: [msg()].
 
 % 22
 initDLQ() ->
@@ -305,5 +310,16 @@ getMessage([]) ->
 getMessage([{Message, MessageVT} | T]) ->
     % 24.2
     {{Message, MessageVT}, T}.
+
+getMessage_test() ->
+    DLQ = [],
+    Message1 = {"test", {1, [0]}},
+    NewDLQ = addToDLQ(DLQ, Message1),
+    ?assertEqual({Message1, []}, getMessage(NewDLQ)),
+
+    Message2 = {"test2", {2, [0, 0]}},
+    NewerDLQ = addToDLQ(NewDLQ, Message2),
+    ?assertEqual({Message1, [Message2]}, getMessage(NewerDLQ)),
+    ok.
 
 -type msg() :: {string(), vectorC:vectorTimestamp()}.
