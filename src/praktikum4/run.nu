@@ -1,38 +1,31 @@
 #!/usr/bin/nu
-let hostname = (sys | get host.hostname)
-
+let hostname = (sys).host.hostname
 let cookie = 'zummsel'
 let bots = ['botA' 'botB' 'botC' 'botD']
-
-def startbots [] {
-  for $bot in $bots {
-    erl -sname $bot -setcookie $cookie -detached
-  }
-}
-
-def killbots [] {
-  for $bot in $bots {
-    let node_name = ([$bot @ $hostname] | str join)
-    erl -noshell -eval $"rpc:call\(($node_name), init, stop, []\)." -detached
-  }
-}
+let tower = $"towerCBC@($hostname)" 
+let tower_clock = $"towerClock@($hostname)" 
 
 def setup [] {
   print "starting...\n"
   erl -make | print $in
   erl -sname towerClock -setcookie $cookie -detached -eval 'towerClock:init().'
   # erl -sname towerCBC -setcookie $cookie -detached -eval 'towerCBC:init(manu).'
-  startbots 
+  for $bot in $bots {
+    erl -sname $bot -setcookie $cookie -detached
+  }
 }
 
 def kill [] {
   print "kill...\n"
-  killbots
-  erl -noshell -eval 'rpc:call(towerCBC, init, stop, []).' -detached
-  erl -noshell -eval 'rpc:call(towerClock, init, stop, []).' -detached
+  for $bot in $bots {
+    let node_name = ([$bot @ $hostname] | str join)
+    erl -sname $"kill_(random uuid)" -noshell -setcookie $cookie -eval $"rpc:call\('($node_name)', init, stop, []\), q()." -detached
+  }
+  erl -sname $"kill_(random uuid)" -noshell -setcookie $cookie -eval $"rpc:call\('($tower)', init, stop, []\), q()." -detached
+  erl -sname $"kill_(random uuid)" -noshell -setcookie $cookie -eval $"rpc:call\('($tower_clock)', init, stop, []\), q()." -detached
 }
 
-export def copy_klauck [] {
+def copy_klauck [] {
   let filepath = ("/home/antoni/studium-repos/VS/src/praktikum4/" | path expand --strict)
   print $"filepath: ($filepath)"
 
@@ -59,5 +52,6 @@ export def main [command: string] {
     "setup" => { setup }
     "kill" => { kill }
     "copy" => { copy_klauck }
+    _ => { print $"unknown command: ($command)\n\navailable commands:\n\tsetup\n\tkill\n\tcopy\n" }
   }
 }

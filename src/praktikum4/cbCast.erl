@@ -95,13 +95,13 @@ start() ->
     % 11.4
     receive
         {replycbc, ok_registered} ->
-            logging(LogFile, format("~s: Erfolgreich beim TowerCBC registriert!", [?TIME]));
+            logging(LogFile, format("~s: Erfolgreich beim TowerCBC registriert!~n", [?TIME]));
         {replycbc, ok_existing} ->
-            logging(LogFile, format("~s: Kommunikationseinheit war bereits registriert.", [?TIME]))
+            logging(LogFile, format("~s: Kommunikationseinheit war bereits registriert.~n", [?TIME]))
     after ?DELAY ->
         logging(
             LogFile,
-            format("~s: Registrierung nicht erfolgreich. Keine Antwort von TowerCBC erhalten.", [
+            format("~s: Registrierung nicht erfolgreich. Keine Antwort von TowerCBC erhalten.~n", [
                 ?TIME
             ])
         )
@@ -150,7 +150,7 @@ loop(MyVT, DLQ, HBQ, TowerCBC, LogFile) ->
             NewDLQ = addToDLQ(DLQ, Msg),
             % 15.4
             TowerCBC ! {self(), {multicastNB, Msg}},
-            logging(LogFile, format("kommunikationseinheit: Msg=~p gesendet~n", [Msg])),
+            logging(LogFile, format("~s: Msg=~p gesendet~n", [?TIME, Msg])),
             % 15.5
             From ! ok,
             loop(NewVT, NewDLQ, HBQ, TowerCBC, LogFile);
