@@ -98,6 +98,11 @@ isVT({ID, Vec = [Elem | _]}) when is_integer(ID), length(Vec) =:= ID, is_integer
 isVT(_Any) ->
     false.
 
+isVT_test() ->
+    ?assertEqual(true, isVT({1, [1]})),
+    ?assertEqual(false, isVT({2, [1]})),
+    ok.
+
 syncVT({ID, Vec1}, {_, Vec2}) ->
     %%         ^ 10.1
     %% 10.2
@@ -204,14 +209,12 @@ aftereqVTJ(_VT = {JD, _}, _VTR = {JD, _}) ->
 aftereqVTJ(_VT = {_, Vektor1}, _VTR = {JD, Vektor2}) ->
     %%                                 ^ 13.1
     %% 13.2
-    {DistVT, VecRest} = lists_take_nth(JD, Vektor1),
-    {DistVTR, VecRestR} = lists_take_nth(JD, Vektor2),
+    {Vektor1Ext, Vektor2Ext} = extendVector(Vektor1, Vektor2),
     %% 13.3
-    {Vektor1Ext, Vektor2Ext} = extendVector(VecRest, VecRestR),
+    {DistVT, VecRest} = lists_take_nth(JD, Vektor1Ext),
+    {DistVTR, VecRestR} = lists_take_nth(JD, Vektor2Ext),
     %% 13.4
-    %% FIXME hier werden zwei leere Vektoren verglichen, aber was soll passieren, wenn wir
-    %%       zwei leere vektoren erhalten?
-    case compareVector(Vektor1Ext, Vektor2Ext) of
+    case compareVector(VecRest, VecRestR) of
         %% 13.5
         beforeVT ->
             false;
@@ -236,28 +239,20 @@ aftereqVTJ_test() ->
 -spec compareVector(Vec, Vec2) -> beforeVT | equalVT | afterVT | concurrentVT when
     Vec :: [integer(), ...],
     Vec2 :: [integer(), ...].
-compareVector([Elem | Tail], [Elem2 | Tail2]) ->
+compareVector(Vec1, Vec2) ->
     %% 15.1
-    case compareElem(Elem, Elem2) of
-        beforeVT ->
-            compareVectorLast(Tail, Tail2, beforeVT);
-        equalVT ->
-            compareVectorLast(Tail, Tail2, equalVT);
-        afterVT ->
-            compareVectorLast(Tail, Tail2, afterVT)
-    end.
+    compareVectorLast(Vec1, Vec2, equalVT).
 
 %% Last :: beforeVT|equalVT|afterVT
 compareVectorLast([], [], Last) ->
     Last;
 compareVectorLast([Elem | Tail], [Elem2 | Tail2], Last) ->
     NewComp = compareElem(Elem, Elem2),
-    case (NewComp == Last) or (NewComp == equalVT) of
-        true ->
-            compareVectorLast(Tail, Tail2, Last);
-        %% 15.2
-        false ->
-            concurrentVT
+    case NewComp of
+        equalVT -> compareVectorLast(Tail, Tail2, Last);
+        beforeVT when Last == afterVT -> concurrentVT;
+        afterVT when Last == beforeVT -> concurrentVT;
+        _ -> compareVectorLast(Tail, Tail2, NewComp)
     end.
 
 compareElem(Elem, Elem2) ->
@@ -280,6 +275,10 @@ compareVector_test() ->
     TestList = [1, 2, 3, 4, 5, 6, 7],
     TestList2 = [1, 2, 3, 4, 5, 6, 7],
     ?assertEqual(equalVT, compareVector(TestList, TestList2)),
+
+    L1 = [1, 2, 1],
+    L2 = [1, 3, 1],
+    ?assertEqual(beforeVT, compareVector(L1, L2)),
     ok.
 
 %% util %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -289,8 +288,6 @@ compareVector_test() ->
     N :: pos_integer(),
     List :: list(),
     Elem :: term() | [].
-lists_nth(_Num, []) ->
-    [];
 lists_nth(1, [H | _]) ->
     H;
 lists_nth(N, [_ | T]) when N > 1 ->
@@ -325,8 +322,6 @@ lists_reverse_test() ->
     List :: list(),
     NewList :: list(),
     Elem :: term() | [].
-lists_take_nth(Num, []) ->
-    {Num, []};
 lists_take_nth(1, [Elem | Tail]) ->
     {Elem, Tail};
 lists_take_nth(Position, [E | T]) ->

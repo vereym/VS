@@ -321,7 +321,7 @@ getMessage_test() ->
     NewerDLQ = addToDLQ(NewDLQ, Message2),
     ?assertEqual({Message1, [Message2]}, getMessage(NewerDLQ)),
 
-    ?assertEqual(null, getMessage([])),
+    ?assertEqual({null, []}, getMessage([])),
     ok.
 
 -type msg() :: {string(), vectorC:vectorTimestamp()}.
