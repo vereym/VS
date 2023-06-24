@@ -13,7 +13,7 @@
 -import(io_lib, [format/2]).
 -import(io, [format/1]).
 
--define(DELAY, 30000).
+-define(DELAY, 600000).
 -define(LogFile, "cbcast_interface.log").
 -define(TIME, now2string(erlang:timestamp())).
 
@@ -193,7 +193,7 @@ loop(MyVT, DLQ, HBQ, TowerCBC, LogFile) ->
                     NewVT = vectorC:syncVT(MyVT, MessageVT),
                     % 17.6
                     {NewHBQ, NewerDLQ} = moveDeliverable(HBQ, NewDLQ, NewVT),
-                    loop(MyVT, NewerDLQ, NewHBQ, TowerCBC, LogFile)
+                    loop(NewVT, NewerDLQ, NewHBQ, TowerCBC, LogFile)
             end
     end.
 
@@ -320,6 +320,8 @@ getMessage_test() ->
     Message2 = {"test2", {2, [0, 0]}},
     NewerDLQ = addToDLQ(NewDLQ, Message2),
     ?assertEqual({Message1, [Message2]}, getMessage(NewerDLQ)),
+
+    ?assertEqual(null, getMessage([])),
     ok.
 
 -type msg() :: {string(), vectorC:vectorTimestamp()}.
