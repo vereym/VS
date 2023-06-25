@@ -205,7 +205,7 @@ compVT({_, Vec}, {_, Vec2}) ->
 %% @param VT eigener Vektorzeitstempel
 %% @param VTR Vektorzeitstempel einer erhaltenen Nachricht
 aftereqVTJ(_VT = {JD, _}, _VTR = {JD, _}) ->
-    {aftereq, 0};
+    {aftereqVTJ, 0};
 aftereqVTJ(_VT = {_, Vektor1}, _VTR = {JD, Vektor2}) ->
     %%                                 ^ 13.1
     %% 13.2
