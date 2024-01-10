@@ -15,7 +15,7 @@ start() ->
 
     %% 1. Auslesen der Konfigureationsdatei
     KoordinatorConfig =
-        case file:consult("koordinator.cfg") of
+        case file:consult("config/koordinator.cfg") of
             {ok, File} ->
                 File;
             {error, Reason} ->

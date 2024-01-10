@@ -11,7 +11,7 @@
 % Initialisiert und startet den Server.
 start() ->
     % 1
-    {ok, ServerConfig} = file:consult("server.cfg"),
+    {ok, ServerConfig} = file:consult("config/server.cfg"),
     {ok, DLQLimit} = get_config_value(dlqlimit, ServerConfig),
     {ok, HBQName} = get_config_value(hbqname, ServerConfig),
     {ok, HBQNode} = get_config_value(hbqnode, ServerConfig),

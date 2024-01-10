@@ -9,7 +9,7 @@
 % Initialisiert und startet alle Client-Prozesse.
 start() ->
     % 1
-    {ok, ClientConfig} = file:consult("client.cfg"),
+    {ok, ClientConfig} = file:consult("config/client.cfg"),
     {ok, Clients} = get_config_value(clients, ClientConfig),
     {ok, LifeTime} = get_config_value(lifetime, ClientConfig),
     {ok, SendeIntervall} = get_config_value(sendeintervall, ClientConfig),

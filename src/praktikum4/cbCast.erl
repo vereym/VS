@@ -79,7 +79,7 @@ read(CommPID) ->
 start() ->
     % 11.1
     logging("com_einheit_test.log", format("kommunikationseinheit in start~n")),
-    {ok, CBCconfig} = file:consult("towerCBC.cfg"),
+    {ok, CBCconfig} = file:consult("config/towerCBC.cfg"),
     {ok, Name} = get_config_value(servername, CBCconfig),
     {ok, Node} = get_config_value(servernode, CBCconfig),
     TowerCBC = {Name, Node},

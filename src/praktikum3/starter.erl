@@ -16,7 +16,7 @@ go(Anzahl, Start) ->
 %     13
 start(StarterNum) ->
     % 11
-    {ok, GGTConfig} = file:consult("ggt.cfg"),
+    {ok, GGTConfig} = file:consult("config/ggt.cfg"),
     {ok, NameServiceNode} = get_config_value(nameservicenode, GGTConfig),
     {ok, KoordinatorName} = get_config_value(koordinatorname, GGTConfig),
     {ok, Gruppe} = get_config_value(praktikumsgruppe, GGTConfig),

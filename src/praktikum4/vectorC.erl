@@ -27,7 +27,7 @@ initVT() ->
 
     %% 4.1 Auslesen von servername und servernode aus der Konfigureationsdatei
     TowerClockConfig =
-        case file:consult("towerClock.cfg") of
+        case file:consult("config/towerClock.cfg") of
             {ok, File} ->
                 File;
             {error, Reason} ->
