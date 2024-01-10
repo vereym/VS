@@ -1,1 +1,0 @@
-{["src/praktikum3/ggt", "src/praktikum3/koordinator", "src/praktikum3/starter"], []}.
